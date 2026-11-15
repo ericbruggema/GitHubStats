@@ -31,6 +31,8 @@ internal sealed class SettingsView : View
     private readonly DispatcherTimer _statusTimer;
     private readonly List<FrameworkElement> _trayRows = new(), _widgetRows = new();
     private bool _loading = true;
+    private Func<string> _wStyle = () => "glass", _wSize = () => "1";
+    private string _wStyleSaved = "", _wSizeSaved = "";
     private readonly StackPanel _tokenResult = new() { Margin = new Thickness(0, 6, 0, 0) };
     private readonly Button _testBtn;
     private readonly WrapPanel _repoChips = new() { Margin = new Thickness(16, 0, 16, 12) };
@@ -189,9 +191,18 @@ internal sealed class SettingsView : View
         _opacityText.Text = Math.Round(_opacity.Value * 100) + "%";
         op.Children.Add(_opacityText);
         op.Children.Add(_opacity);
+        var wst = S.Segmented(WidgetStyles.All.Select(a => a.Key).ToArray(), WidgetStyles.All.Select(a => a.Label).ToArray(), WidgetStyles.Normalize(ui.WidgetStyle), Changed, wrap: true);
+        _wStyle = wst.Get;
+        var wsz = S.Segmented(new[] { "0.85", "1", "1.2" }, new[] { "Small", "Normal", "Large" },
+            ui.WidgetScale < 0.95 ? "0.85" : ui.WidgetScale > 1.1 ? "1.2" : "1", Changed);
+        _wSize = wsz.Get;
+        _wStyleSaved = _wStyle();
+        _wSizeSaved = _wSize();
         Section("Desktop widget",
             S.Row("Show the widget", S.Desc("A small window with downloads, stars and the trend."), _widget),
             Dep(_widgetRows, S.Row("Always on top", S.Desc("Keep the widget above other windows."), _topmost = S.Toggle(ui.WidgetTopmost, Changed), 1)),
+            Dep(_widgetRows, S.Row("Style", S.Desc("Ten looks. Also on the widget: right-click > Style."), wst.Panel, 1)),
+            Dep(_widgetRows, S.Row("Size", null, wsz.Panel, 1)),
             Dep(_widgetRows, S.Row("Opacity", null, op, 1)));
 
         // ---- publish folder
@@ -327,6 +338,9 @@ internal sealed class SettingsView : View
         ui.Celebrate = _celebrate.IsChecked == true;
         ui.Widget = _widget.IsChecked == true;
         ui.WidgetTopmost = _topmost.IsChecked == true;
+        // only when changed here: the widget's own right-click menu can change these too
+        if (_wStyle() != _wStyleSaved) { ui.WidgetStyle = _wStyle(); _wStyleSaved = _wStyle(); }
+        if (_wSize() != _wSizeSaved) { ui.WidgetScale = double.Parse(_wSize(), System.Globalization.CultureInfo.InvariantCulture); _wSizeSaved = _wSize(); }
         ui.WidgetOpacity = _opacity.Value;
         ui.Theme = _theme();
         ui.Accent = _accent();
@@ -628,10 +642,10 @@ internal static class S
         return c;
     }
 
-    public static (FrameworkElement Panel, Func<string> Get) Segmented(string[] keys, string[] labels, string selected, Action changed)
+    public static (FrameworkElement Panel, Func<string> Get) Segmented(string[] keys, string[] labels, string selected, Action changed, bool wrap = false)
     {
         string group = "seg" + Guid.NewGuid().ToString("N");
-        var p = new StackPanel { Orientation = Orientation.Horizontal };
+        Panel p = wrap ? new WrapPanel { MaxWidth = 430 } : new StackPanel { Orientation = Orientation.Horizontal };
         var buttons = new List<RadioButton>();
         bool any = Array.IndexOf(keys, selected) >= 0;
         for (int i = 0; i < keys.Length; i++)

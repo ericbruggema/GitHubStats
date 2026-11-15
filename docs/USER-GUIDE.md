@@ -99,7 +99,13 @@ Everything is **saved automatically**. A green *✓ Saved* appears at the top.
   a card with all the numbers.
 - **Keep running when closed:** closing the window hides it to the tray, so refreshes and notifications keep going.
 - **Notifications:** new stars and download milestones (needs the tray icon).
-- **Desktop widget:** a small window with downloads, stars and the trend. Drag it anywhere. It remembers its place.
+- **Desktop widget:** drag it anywhere (it remembers its place), double-click to open the main window. It stays on the
+  desktop when you press Win+D. Right-click for **Style** (ten looks), **Size**, **Keep on top** and **Opacity**:
+
+  ![Ten widget styles](screenshots/widget-styles.png)
+
+  *Pick your tiles* has a **Tiles** submenu (up to 6 metrics). *Edge dock* sticks to the right edge of the screen and
+  slides away after 1.5 seconds without the mouse (switch that off with **Slide away when not in use**).
 - **Taskbar:** a progress bar while refreshing, and a badge with the number of new stars you haven't seen yet.
 
 ## Backup and restore

@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.2.0 (2026-11-15)
+
+### New: ten widget styles
+Choose with right-click on the widget > **Style**, or in **Settings > Desktop widget**:
+
+1. **Glass card**: downloads and stars with a soft area chart (the new default)
+2. **Compact pill**: one line, perfect above the taskbar
+3. **Milestone ring**: progress to your next download milestone, with an estimate of when you'll reach it
+4. **Top repositories**: mini leaderboard with bars
+5. **Star feed**: the latest stargazers (needs a token)
+6. **Download heatmap**: downloads per day for the last 8 weeks, GitHub-style
+7. **Big counter**: one big number that rolls up when downloads come in
+8. **Trend chart**: downloads and stars on one scale, with a 7d / 30d switch
+9. **Edge dock**: a slim strip on the right edge of the screen that slides away when you don't need it
+10. **Pick your tiles**: choose up to 6 metrics (downloads, stars, 7-day changes, per day, views, clones, forks, ...)
+
+Plus a **Size** option (small, normal, large) for every style.
+
 ## 2.1.2 (2026-11-15)
 
 ### Fixed

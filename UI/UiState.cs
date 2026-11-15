@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
@@ -18,6 +19,16 @@ internal sealed class UiState
     public bool Widget { get; set; }
     public double WidgetOpacity { get; set; } = 0.92;
     public bool WidgetTopmost { get; set; } = true;
+    /// <summary>Look of the widget (see WidgetStyles.All).</summary>
+    public string WidgetStyle { get; set; } = "glass";
+    /// <summary>Widget size: 0.85 small, 1 normal, 1.2 large.</summary>
+    public double WidgetScale { get; set; } = 1.0;
+    /// <summary>Range of the "Trend chart" widget: 7 or 30 days.</summary>
+    public int WidgetChartDays { get; set; } = 30;
+    /// <summary>Metrics on the "Pick your tiles" widget.</summary>
+    public List<string> WidgetTiles { get; set; } = new() { "downloads", "stars", "dl7", "views" };
+    /// <summary>"Edge dock" slides away when the mouse leaves it.</summary>
+    public bool WidgetAutoHide { get; set; } = true;
     public double? WidgetX { get; set; }
     public double? WidgetY { get; set; }
     public double? WinX { get; set; }

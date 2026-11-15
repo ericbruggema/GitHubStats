@@ -42,7 +42,7 @@ history on your own PC and tells you when something happens. No website, no acco
 | 🎆 **Celebrations** | Fireworks and a "+N" on your screen when someone stars a project. Notifications for download milestones you choose. |
 | 🔎 **Repositories at a glance** | Sortable table with change since the last refresh, last 7 days and per day. Search box, and a chart per repository. |
 | 🧭 **Insights** | Most downloaded files, downloads per platform (Windows / Android / ...), top referrers and popular pages. |
-| 🖥️ **Lives in your tray** | Tray icon with a hover card, a small desktop widget, taskbar progress and badge, start with Windows. |
+| 🖥️ **Lives in your tray** | Tray icon with a hover card, a desktop widget in **10 styles** (glass card, milestone ring, heatmap, edge dock, ...), taskbar progress and badge, start with Windows. |
 | 📤 **Export & share** | CSV (Excel-ready), JSON, a stand-alone web page, a README block and SVG badges, written to a folder after every refresh. |
 | 🙈 **Hide repositories** | Leave test or archived repos out of every total without losing their data. |
 | 💾 **Backup & restore** | One zip with your settings and all history. |
@@ -60,6 +60,9 @@ history on your own PC and tells you when something happens. No website, no acco
 <tr>
 <td><img src="docs/screenshots/settings.png" alt="Settings"><br><sub><b>Settings</b>: token test, data options, auto-save</sub></td>
 <td><img src="docs/screenshots/settings-repos.png" alt="Settings: repositories"><br><sub><b>Hide repositories</b>, milestones and accent colours</sub></td>
+</tr>
+<tr>
+<td colspan="2"><img src="docs/screenshots/widget-styles.png" alt="Ten widget styles"><br><sub><b>Desktop widget</b>: ten styles to choose from</sub></td>
 </tr>
 <tr>
 <td colspan="2" align="center"><img src="docs/screenshots/about.png" width="60%" alt="About"><br><sub><b>About</b></sub></td>
