@@ -13,6 +13,12 @@ internal sealed class TrayHost : IDisposable
     private readonly System.Windows.Threading.DispatcherTimer _hoverTimer;
     private long _lastMove;
     private int _lx, _ly;
+    /// <summary>When the mouse arrived on the icon (0 = not on the icon).</summary>
+    private long _hoverStart;
+    /// <summary>A click or the menu happened during this visit: no card until the mouse has left the icon.</summary>
+    private bool _suppressed;
+    /// <summary>The card waits this long, so a right-click for the menu is not covered by it.</summary>
+    private const int HoverDelayMs = 2000;
     private string _plainText = "GitHub Stats";
 
     public TrayHost()
@@ -41,7 +47,7 @@ internal sealed class TrayHost : IDisposable
         Add("Test the star celebration", () => Host.Celebrate(3, true));
         _menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         Add("Quit", Host.Quit);
-        _menu.Opening += (s, e) => { Host.HideHover(); RefreshMenu(); };
+        _menu.Opening += (s, e) => { _suppressed = true; Host.HideHover(); RefreshMenu(); };
 
         _icon = new System.Windows.Forms.NotifyIcon
         {
@@ -61,9 +67,9 @@ internal sealed class TrayHost : IDisposable
             var pos = System.Windows.Forms.Cursor.Position;
             _lx = pos.X;
             _ly = pos.Y;
-            if (Host.State.HoverCard) Host.ShowHover(pos.X, pos.Y);
+            if (_hoverStart == 0) _hoverStart = _lastMove; // the card appears after HoverDelayMs (see the timer)
         };
-        _icon.MouseDown += (s, e) => Host.HideHover();
+        _icon.MouseDown += (s, e) => { _suppressed = true; Host.HideHover(); };
 
         // the icon has no "mouse left" event: hide the card when the mouse is no longer where it last moved over the icon
         _hoverTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
@@ -71,7 +77,18 @@ internal sealed class TrayHost : IDisposable
         {
             var c = System.Windows.Forms.Cursor.Position;
             bool moved = Math.Abs(c.X - _lx) > 10 || Math.Abs(c.Y - _ly) > 10;
-            if (moved || Environment.TickCount64 - _lastMove > 15000) Host.HideHover();
+            if (moved)
+            {
+                // the mouse left the icon: start over on the next visit
+                _hoverStart = 0;
+                _suppressed = false;
+                Host.HideHover();
+                return;
+            }
+            long now = Environment.TickCount64;
+            if (now - _lastMove > 15000) { Host.HideHover(); return; }
+            if (_hoverStart != 0 && !_suppressed && !_menu.Visible && Host.State.HoverCard && now - _hoverStart >= HoverDelayMs)
+                Host.ShowHover(_lx, _ly);
         };
         _hoverTimer.Start();
     }

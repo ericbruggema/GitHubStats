@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.1 (2026-11-15)
+
+### Changed
+- The tray hover card now appears after **2 seconds** on the icon, so a right-click for the menu is no longer
+  covered by it. After a click or opening the menu, the card stays away until the mouse leaves the icon.
+
 ## 2.1.0 (2026-11-15)
 
 ### New
