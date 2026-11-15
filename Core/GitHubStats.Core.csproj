@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- build.bat passes the target framework of the installed SDK, e.g. -p:CoreTfm=net10.0 -->
+    <CoreTfm Condition="'$(CoreTfm)' == ''">net8.0</CoreTfm>
+    <TargetFramework>$(CoreTfm)</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>GitHubStats.Core</AssemblyName>
+    <RootNamespace>GitHubStats</RootNamespace>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="GitHubStats" />
+    <InternalsVisibleTo Include="GitHubStats.Tests" />
+    <InternalsVisibleTo Include="StubCheck" />
+  </ItemGroup>
+
+</Project>

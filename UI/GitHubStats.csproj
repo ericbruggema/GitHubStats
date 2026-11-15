@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- build.bat passes the target framework of the installed SDK, e.g. -p:Tfm=net10.0-windows -->
+    <Tfm Condition="'$(Tfm)' == ''">net8.0-windows</Tfm>
+    <TargetFramework>$(Tfm)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms> <!-- only for the tray icon (NotifyIcon) -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>GitHubStats</AssemblyName>
+    <RootNamespace>GitHubStats</RootNamespace>
+    <Version>2.1.0</Version>
+    <Product>GitHub Stats</Product>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core\GitHubStats.Core.csproj" />
+    <EmbeddedResource Include="app.ico" LogicalName="GitHubStats.app.ico" />
+  </ItemGroup>
+
+</Project>
