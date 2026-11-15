@@ -10,7 +10,7 @@
 ; and is used as the default install folder so the update lands next to your data.
 
 #define AppName "GitHub Stats"
-#define AppVer  "2.1.1"
+#define AppVer  "2.1.2"
 #define AppExe  "GitHubStats.exe"
 
 [Setup]

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.2 (2026-11-15)
+
+### Fixed
+- The desktop widget no longer disappears with "Show desktop" (Win+D) or when other windows are minimised. It is now pinned to the desktop and kept out of Alt+Tab.
+- The desktop widget could stretch far wider than the screen, pushing the numbers out of view.
+- Right-click menus (widget and text boxes) were hard to read in dark mode. They now follow the theme: rounded, with a check mark for the current choice and a highlight on hover.
+
 ## 2.1.1 (2026-11-15)
 
 ### Changed

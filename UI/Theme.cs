@@ -151,6 +151,55 @@ internal static class Theme
       </Trigger>
     </Style.Triggers>
   </Style>
+  <Style TargetType="ContextMenu">
+    <Setter Property="OverridesDefaultStyle" Value="True"/>
+    <Setter Property="HasDropShadow" Value="False"/>
+    <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+    <Setter Property="FontFamily" Value="Segoe UI"/>
+    <Setter Property="FontSize" Value="13"/>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ContextMenu">
+      <Border Margin="0,0,10,10" Background="{DynamicResource Card}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="8" Padding="0,4" MinWidth="190">
+        <Border.Effect><DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.35"/></Border.Effect>
+        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+      </Border>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator">
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Separator">
+      <Border Height="1" Margin="10,4" Background="{DynamicResource Border}"/>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style TargetType="Separator">
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Separator">
+      <Border Height="1" Margin="10,4" Background="{DynamicResource Border}"/>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style TargetType="MenuItem">
+    <Setter Property="OverridesDefaultStyle" Value="True"/>
+    <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="MenuItem">
+      <Border x:Name="bd" Background="Transparent" CornerRadius="5" Padding="8,6,12,6" Margin="4,1">
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <TextBlock x:Name="check" Text="&#xE73E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" VerticalAlignment="Center" Visibility="Hidden" Foreground="{DynamicResource Link}"/>
+          <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center"/>
+          <TextBlock x:Name="arrow" Grid.Column="2" Text="&#xE76C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" Margin="18,0,0,0" VerticalAlignment="Center" Visibility="Collapsed" Foreground="{DynamicResource Muted}"/>
+          <Popup x:Name="PART_Popup" Placement="Right" HorizontalOffset="6" VerticalOffset="-6" IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}" AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
+            <Border Margin="0,0,10,10" Background="{DynamicResource Card}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="8" Padding="0,4" MinWidth="120">
+              <Border.Effect><DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.35"/></Border.Effect>
+              <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+            </Border>
+          </Popup>
+        </Grid>
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="bd" Property="Background" Value="{DynamicResource Accent}"/></Trigger>
+        <Trigger Property="IsChecked" Value="True"><Setter TargetName="check" Property="Visibility" Value="Visible"/></Trigger>
+        <Trigger Property="HasItems" Value="True"><Setter TargetName="arrow" Property="Visibility" Value="Visible"/></Trigger>
+        <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
   <Style x:Key="SlFill" TargetType="RepeatButton">
     <Setter Property="Focusable" Value="False"/><Setter Property="IsTabStop" Value="False"/>
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RepeatButton">

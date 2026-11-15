@@ -46,7 +46,7 @@ internal sealed class WidgetWindow : Window
         cols.Children.Add(left);
         cols.Children.Add(right);
 
-        var stack = new StackPanel();
+        var stack = new StackPanel { Width = 232 }; // fixed: the trend line would otherwise stretch the widget across the screen
         stack.Children.Add(cols);
         _spark.Margin = new Thickness(0, 8, 0, 4);
         stack.Children.Add(_spark);
@@ -79,6 +79,10 @@ internal sealed class WidgetWindow : Window
         var hide = new MenuItem { Header = "Hide widget" };
         hide.Click += (s, e) => Host.SetWidget(false);
         menu.Items.Add(hide);
+        menu.Opened += (s, e) =>
+        {
+            foreach (MenuItem it in op.Items) it.IsChecked = Math.Abs(Opacity * 100 - int.Parse(((string)it.Header).TrimEnd('%'))) < 1;
+        };
         ContextMenu = menu;
 
         MouseLeftButtonDown += (s, e) =>
@@ -90,7 +94,7 @@ internal sealed class WidgetWindow : Window
             Host.State.Save();
         };
 
-        SourceInitialized += (s, e) => Place();
+        SourceInitialized += (s, e) => { Place(); Native.PinToDesktop(this); };
     }
 
     private void Place()
