@@ -17,6 +17,9 @@ internal sealed class DailyBarChart : FrameworkElement
     private List<(DateTime Day, long? Value)> _days = new();
     private string _unit = "downloads";
     private int _hover = -1;
+    /// <summary>Optional second series drawn as a line (e.g. unique visitors); null = the 7-day average.</summary>
+    private double?[]? _line;
+    private string _lineLabel = "7-day average";
     private const double L = 40, R = 12, T = 10, B = 22;
 
     public DailyBarChart()
@@ -27,10 +30,12 @@ internal sealed class DailyBarChart : FrameworkElement
         Unloaded += (s, e) => Theme.Changed -= InvalidateVisual;
     }
 
-    public void SetDays(List<(DateTime Day, long? Value)> days, string unit)
+    public void SetDays(List<(DateTime Day, long? Value)> days, string unit, double?[]? line = null, string? lineLabel = null)
     {
         _days = days;
         _unit = unit;
+        _line = line != null && line.Length == days.Count ? line : null;
+        _lineLabel = lineLabel ?? "7-day average";
         _hover = -1;
         InvalidateVisual();
     }
@@ -58,7 +63,7 @@ internal sealed class DailyBarChart : FrameworkElement
             return;
         }
         var p = Plot;
-        long max = Math.Max(1, _days.Max(d => d.Value ?? 0));
+        long max = Math.Max(1, Math.Max(_days.Max(d => d.Value ?? 0), (long)Math.Ceiling(_line?.Max(x => x ?? 0) ?? 0)));
         long top = NiceTop(max);
 
         // y grid: 0, half, top
@@ -67,7 +72,8 @@ internal sealed class DailyBarChart : FrameworkElement
         {
             double y = p.Bottom - f * p.Height;
             dc.DrawLine(gridPen, new Point(p.Left, y), new Point(p.Right, y));
-            var lb = FT(Fmt.N((long)Math.Round(top * f)), 10.5, muted);
+            double lv = top * f;
+            var lb = FT(Math.Abs(lv - Math.Round(lv)) < 0.01 ? Fmt.N((long)Math.Round(lv)) : lv.ToString("0.#", CultureInfo.CurrentCulture), 10.5, muted);
             dc.DrawText(lb, new Point(p.Left - 6 - lb.Width, y - lb.Height / 2));
         }
 
@@ -85,7 +91,7 @@ internal sealed class DailyBarChart : FrameworkElement
             dc.DrawRoundedRectangle(i == _hover ? hoverBar : bar, null, new Rect(cx - bw / 2, p.Bottom - bh, bw, bh), Math.Min(3, bw / 3), Math.Min(3, bw / 3));
         }
 
-        // 7-day average line
+        // second line: the given series, or the 7-day average
         var avgPen = new Pen(Theme.B("S1"), 1.6) { DashStyle = new DashStyle(new double[] { 3, 2 }, 0), LineJoin = PenLineJoin.Round };
         var geo = new StreamGeometry();
         using (var c = geo.Open())
@@ -93,9 +99,9 @@ internal sealed class DailyBarChart : FrameworkElement
             bool started = false;
             for (int i = 0; i < n; i++)
             {
-                var win = _days.Skip(Math.Max(0, i - 6)).Take(Math.Min(7, i + 1)).Where(d => d.Value != null).Select(d => d.Value!.Value).ToList();
-                if (win.Count < 3) { started = false; continue; }
-                var pt = new Point(p.Left + slot * (i + 0.5), p.Bottom - win.Average() / top * p.Height);
+                double? lv = LineValue(i);
+                if (lv == null) { started = false; continue; }
+                var pt = new Point(p.Left + slot * (i + 0.5), p.Bottom - lv.Value / top * p.Height);
                 if (!started) { c.BeginFigure(pt, false, false); started = true; } else c.LineTo(pt, true, true);
             }
         }
@@ -123,10 +129,10 @@ internal sealed class DailyBarChart : FrameworkElement
         if (_hover >= 0 && _hover < n)
         {
             var (day, v) = _days[_hover];
-            var win = _days.Skip(Math.Max(0, _hover - 6)).Take(Math.Min(7, _hover + 1)).Where(d => d.Value != null).Select(d => d.Value!.Value).ToList();
+            double? lv = LineValue(_hover);
             var l1 = FT(day.ToString("dddd d MMM yyyy", CultureInfo.InvariantCulture), 11.5, muted);
             var l2 = FT(v == null ? "no measurement" : Fmt.N(v.Value) + " " + _unit, 13, text, true);
-            var l3 = FT(win.Count >= 3 ? "7-day average " + win.Average().ToString("0.#", CultureInfo.CurrentCulture) : "", 11, muted);
+            var l3 = FT(lv != null ? _lineLabel + " " + lv.Value.ToString("0.#", CultureInfo.CurrentCulture) : "", 11, muted);
             double bwid = Math.Max(l1.Width, Math.Max(l2.Width, l3.Width)) + 20, bhgt = 12 + l1.Height + l2.Height + (l3.Text.Length > 0 ? l3.Height : 0);
             double cx = p.Left + slot * (_hover + 0.5);
             double bx = cx + 12 + bwid > w ? cx - 12 - bwid : cx + 12;
@@ -136,6 +142,13 @@ internal sealed class DailyBarChart : FrameworkElement
             dc.DrawText(l2, new Point(Math.Max(2, bx) + 10, ty)); ty += l2.Height;
             if (l3.Text.Length > 0) dc.DrawText(l3, new Point(Math.Max(2, bx) + 10, ty));
         }
+    }
+
+    private double? LineValue(int i)
+    {
+        if (_line != null) return _line[i];
+        var win = _days.Skip(Math.Max(0, i - 6)).Take(Math.Min(7, i + 1)).Where(d => d.Value != null).Select(d => d.Value!.Value).ToList();
+        return win.Count >= 3 ? win.Average() : null;
     }
 
     /// <summary>A round number just above <paramref name="max"/> for the top of the y axis.</summary>

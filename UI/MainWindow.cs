@@ -140,8 +140,20 @@ internal sealed class MainWindow : Window
         panel.Children.Add(b);
     }
 
+    private DetailView? _detail;
+
+    /// <summary>Opens the detail statistics for one Overview block (the Overview stays selected in the menu).</summary>
+    public void ShowDetail(string kind)
+    {
+        if (kind == "repos") { Select("repos"); return; }
+        _detail = new DetailView(kind);
+        _host.Child = _detail;
+        if (_db != null) _detail.Update(_db);
+    }
+
     public void Select(string key)
     {
+        _detail = null;
         _current = key;
         foreach (var kv in _nav)
         {
@@ -160,7 +172,8 @@ internal sealed class MainWindow : Window
     public void ShowData(Dashboard db)
     {
         _db = db;
-        _views[_current].Update(db);
+        if (_detail != null && ReferenceEquals(_host.Child, _detail)) _detail.Update(db);
+        else _views[_current].Update(db);
 
         UpdateStatus();
 

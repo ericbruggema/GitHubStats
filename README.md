@@ -58,6 +58,10 @@ history on your own PC and tells you when something happens. No website, no acco
 <td colspan="2"><img src="docs/screenshots/overview-panels.png" alt="Overview panels"><br><sub><b>Overview</b>: every number on one page, with dates along the chart and panels for top repositories, downloads per day, latest stars, traffic and more</sub></td>
 </tr>
 <tr>
+<td width="50%"><img src="docs/screenshots/detail-downloads.png" alt="Detail: downloads"><br><sub><b>Click any block</b> for details: downloads per day, per repository and more</sub></td>
+<td width="50%"><img src="docs/screenshots/detail-views.png" alt="Detail: views"><br><sub><b>Views and clones</b> per day, kept beyond GitHub's 14 days</sub></td>
+</tr>
+<tr>
 <td width="50%"><img src="docs/screenshots/repositories.png" alt="Repositories"><br><sub><b>Repositories</b>: search, sort and a chart per repo</sub></td>
 <td width="50%"><img src="docs/screenshots/insights.png" alt="Insights"><br><sub><b>Insights</b>: top files and downloads per platform</sub></td>
 </tr>

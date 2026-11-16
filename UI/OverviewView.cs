@@ -41,16 +41,16 @@ internal sealed class OverviewView : View
         // ---- key numbers
         var (views, clones, uViews, uClones) = Traffic();
         var kpis = new MasonryPanel { MinColumnWidth = 168, Gap = 10, RowByRow = true };
-        kpis.Children.Add(Kpi("", "S0", "Downloads", Fmt.N(db.TotalDownloads), Delta(db.DownloadsDelta, "last refresh"), Delta(db.DownloadsWin[1].Value, "7 days")));
-        kpis.Children.Add(Kpi("", "S1", "Stars", Fmt.N(db.TotalStars), Delta(db.StarsDelta, "last refresh"), Delta(db.StarsWin[1].Value, "7 days")));
-        kpis.Children.Add(Kpi("", "S2", "Views, 14 days", views == null ? "-" : Fmt.N(views.Value), views == null ? ("Needs a token with repository access", 0) : (Fmt.N(uViews ?? 0) + " unique visitors", 0), null));
-        kpis.Children.Add(Kpi("", "S2", "Clones, 14 days", clones == null ? "-" : Fmt.N(clones.Value), clones == null ? ("Needs a token with repository access", 0) : (Fmt.N(uClones ?? 0) + " unique cloners", 0), null));
-        kpis.Children.Add(Kpi("", "S0", "Downloads per day", db.DownloadsPerDay is double pd ? pd.ToString(pd < 10 ? "0.0" : "0", CultureInfo.CurrentCulture) : "-", ("average over 7 days", 0), null));
+        kpis.Children.Add(Kpi("downloads", "", "S0", "Downloads", Fmt.N(db.TotalDownloads), Delta(db.DownloadsDelta, "last refresh"), Delta(db.DownloadsWin[1].Value, "7 days")));
+        kpis.Children.Add(Kpi("stars", "", "S1", "Stars", Fmt.N(db.TotalStars), Delta(db.StarsDelta, "last refresh"), Delta(db.StarsWin[1].Value, "7 days")));
+        kpis.Children.Add(Kpi("views", "", "S2", "Views, 14 days", views == null ? "-" : Fmt.N(views.Value), views == null ? ("Needs a token with repository access", 0) : (Fmt.N(uViews ?? 0) + " unique visitors", 0), null));
+        kpis.Children.Add(Kpi("clones", "", "S2", "Clones, 14 days", clones == null ? "-" : Fmt.N(clones.Value), clones == null ? ("Needs a token with repository access", 0) : (Fmt.N(uClones ?? 0) + " unique cloners", 0), null));
+        kpis.Children.Add(Kpi("downloads", "", "S0", "Downloads per day", db.DownloadsPerDay is double pd ? pd.ToString(pd < 10 ? "0.0" : "0", CultureInfo.CurrentCulture) : "-", ("average over 7 days", 0), null));
         kpis.Children.Add(Milestone(db));
-        kpis.Children.Add(Kpi("", "Muted", "Repositories", Fmt.N(db.Totals.Repos), (app.Cfg.HiddenRepos.Count > 0 ? app.Cfg.HiddenRepos.Count + " hidden" : "public, owned by " + db.User, 0), null));
-        kpis.Children.Add(Kpi("", "Muted", "Releases", Fmt.N(db.Totals.Releases), (Fmt.N(TotalAssets()) + " files attached", 0), null));
-        kpis.Children.Add(Kpi("", "Muted", "Forks", Fmt.N(db.Totals.Forks), ("copies of your repositories", 0), null));
-        kpis.Children.Add(Kpi("", "Muted", "Open issues", Fmt.N(db.Totals.OpenIssues), ("including pull requests", 0), null));
+        kpis.Children.Add(Kpi("repos", "", "Muted", "Repositories", Fmt.N(db.Totals.Repos), (app.Cfg.HiddenRepos.Count > 0 ? app.Cfg.HiddenRepos.Count + " hidden" : "public, owned by " + db.User, 0), null));
+        kpis.Children.Add(Kpi("releases", "", "Muted", "Releases", Fmt.N(db.Totals.Releases), (Fmt.N(TotalAssets()) + " files attached", 0), null));
+        kpis.Children.Add(Kpi("forks", "", "Muted", "Forks", Fmt.N(db.Totals.Forks), ("copies of your repositories", 0), null));
+        kpis.Children.Add(Kpi("issues", "", "Muted", "Open issues", Fmt.N(db.Totals.OpenIssues), ("including pull requests", 0), null));
         _root.Children.Add(kpis);
 
         // ---- growth: one slim strip
@@ -65,20 +65,20 @@ internal sealed class OverviewView : View
         _chart.SetModel(db.All);
         if (_chart.Parent is Border oc) oc.Child = null;
         var charts = new MasonryPanel { MinColumnWidth = 430, Gap = 14, RowByRow = true, Margin = new Thickness(0, 12, 0, 0) };
-        charts.Children.Add(Panel("Downloads per day", ChartBody(_daily, "Last " + nDays + " days. Dashed line: 7-day average. Hover a bar for the exact number."), null, null));
-        charts.Children.Add(Panel("All repositories over time", ChartBody(_chart, db.All?.Caption ?? ""), null, null));
+        charts.Children.Add(Panel("Downloads per day", ChartBody(_daily, "Last " + nDays + " days. Dashed line: 7-day average. Hover a bar for the exact number."), "downloads"));
+        charts.Children.Add(Panel("All repositories over time", ChartBody(_chart, db.All?.Caption ?? ""), "downloads"));
         _root.Children.Add(charts);
 
         // ---- detail panels, as many columns as fit
         var panels = new MasonryPanel { MinColumnWidth = 380, Gap = 14, Margin = new Thickness(0, 14, 0, 0) };
-        panels.Children.Add(Panel("Top repositories", TopRepos(db), "Repositories", "repos"));
-        panels.Children.Add(Panel("Download calendar", Heat(), null, null));
-        panels.Children.Add(Panel("Latest stars", LatestStars(db), "All stars", "stars"));
-        panels.Children.Add(Panel("Traffic, last 14 days", TrafficPanel(db), null, null));
-        panels.Children.Add(Panel("Latest releases", LatestReleases(), null, null));
-        panels.Children.Add(Panel("Most downloaded files", Bars(db.TopFiles.Take(6), x => Fmt.N(x.Value), 0, x => x.Detail), "Insights", "insights"));
-        panels.Children.Add(Panel("Downloads by platform", Bars(db.Platforms, x => Fmt.N(x.Value) + "  " + x.Detail, 2, null), null, null));
-        panels.Children.Add(Panel("Highlights", Highlights(db), null, null));
+        panels.Children.Add(Panel("Top repositories", TopRepos(db), "downloads"));
+        panels.Children.Add(Panel("Download calendar", Heat(), "downloads"));
+        panels.Children.Add(Panel("Latest stars", LatestStars(db), "stars"));
+        panels.Children.Add(Panel("Traffic, last 14 days", TrafficPanel(db), "views"));
+        panels.Children.Add(Panel("Latest releases", LatestReleases(), "releases"));
+        panels.Children.Add(Panel("Most downloaded files", Bars(db.TopFiles.Take(6), x => Fmt.N(x.Value), 0, x => x.Detail), "files"));
+        panels.Children.Add(Panel("Downloads by platform", Bars(db.Platforms, x => Fmt.N(x.Value) + "  " + x.Detail, 2, null), "downloads"));
+        panels.Children.Add(Panel("Highlights", Highlights(db), null));
         _root.Children.Add(panels);
 
         var foot = Ui.Text("Download counts only include files attached to releases (not the automatic source code archives), and GitHub counts every download, including bots, CI runs and mirrors. "
@@ -92,7 +92,7 @@ internal sealed class OverviewView : View
     private static (string Text, long Sign)? Delta(long? d, string what) =>
         d == null ? null : (Fmt.DeltaText(d.Value) + " " + what, d.Value);
 
-    private static FrameworkElement Kpi(string glyph, string brush, string label, string value, (string Text, long Sign)? line1, (string Text, long Sign)? line2)
+    private static FrameworkElement Kpi(string detail, string glyph, string brush, string label, string value, (string Text, long Sign)? line1, (string Text, long Sign)? line2)
     {
         var sp = new StackPanel();
         var head = new StackPanel { Orientation = Orientation.Horizontal };
@@ -111,6 +111,18 @@ internal sealed class OverviewView : View
         }
         var b = Ui.Box(sp, 10, new Thickness(13, 8, 13, 8));
         b.MinHeight = 84;
+        return Clickable(b, detail);
+    }
+
+    /// <summary>Makes a block open its detail statistics on click, with a hover highlight.</summary>
+    private static Border Clickable(Border b, string detail)
+    {
+        b.Cursor = Cursors.Hand;
+        b.ToolTip = detail == "repos" ? "Open Repositories" : "Show detailed statistics";
+        ToolTipService.SetInitialShowDelay(b, 600);
+        b.MouseEnter += (s, e) => b.Res(Border.BorderBrushProperty, "Link");
+        b.MouseLeave += (s, e) => b.Res(Border.BorderBrushProperty, "Border");
+        b.MouseLeftButtonUp += (s, e) => { if (!e.Handled) Host.Window?.ShowDetail(detail); };
         return b;
     }
 
@@ -140,7 +152,7 @@ internal sealed class OverviewView : View
         sp.Children.Add(Ui.Text(next == 0 ? "add more in Settings" : Math.Round(p * 100) + "%" + eta, 11, "Muted", false, true));
         var b = Ui.Box(sp, 10, new Thickness(13, 8, 13, 8));
         b.MinHeight = 84;
-        return b;
+        return Clickable(b, "milestone");
     }
 
     /// <summary>Growth in one slim line: downloads and stars over the last refresh, 24 hours, 7 and 30 days.</summary>
@@ -178,7 +190,7 @@ internal sealed class OverviewView : View
         Group("", "S1", "Stars", db.StarsDelta, db.StarsWin);
         var b = Ui.Box(wrap, 10, new Thickness(14, 8, 14, 8));
         b.Margin = new Thickness(0, 10, 0, 0);
-        return b;
+        return Clickable(b, "downloads");
     }
 
     private static FrameworkElement ChartBody(FrameworkElement chart, string caption)
@@ -209,21 +221,21 @@ internal sealed class OverviewView : View
 
     // ------------------------------------------------------------------ panels
 
-    private FrameworkElement Panel(string title, FrameworkElement body, string? linkText, string? navKey)
+    private FrameworkElement Panel(string title, FrameworkElement body, string? detail)
     {
         var sp = new StackPanel();
         var head = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
-        if (linkText != null && navKey != null)
+        if (detail != null)
         {
-            var link = S.Link(linkText + " ›", () => Host.Window?.Select(navKey));
-            link.Margin = new Thickness(0);
-            DockPanel.SetDock(link, Dock.Right);
-            head.Children.Add(link);
+            var more = Ui.Text("Details \u203A", 12, "Link");
+            DockPanel.SetDock(more, Dock.Right);
+            head.Children.Add(more);
         }
         head.Children.Add(Ui.Text(title, 14, "Text", true));
         sp.Children.Add(head);
         sp.Children.Add(body);
-        return Ui.Box(sp, 10, new Thickness(16, 12, 16, 14));
+        var b = Ui.Box(sp, 10, new Thickness(16, 12, 16, 14));
+        return detail == null ? b : Clickable(b, detail);
     }
 
     private static FrameworkElement TopRepos(Dashboard db)
@@ -262,10 +274,10 @@ internal sealed class OverviewView : View
             g.Children.Add(st);
             g.Cursor = Cursors.Hand;
             g.Background = Brushes.Transparent;
-            g.MouseLeftButtonUp += (s, e) => Ui.OpenUrl(r.Url);
+            g.MouseLeftButtonUp += (s, e) => { e.Handled = true; Ui.OpenUrl(r.Url); };
             sp.Children.Add(g);
         }
-        var hint = Ui.Text("downloads  ·  last 7 days  ·  stars. Click a row to open it on GitHub.", 10.5, "Muted");
+        var hint = Ui.Text("downloads  ·  last 7 days  ·  stars. Click a repository to open it on GitHub, anywhere else for details.", 10.5, "Muted");
         hint.Margin = new Thickness(0, 6, 0, 0);
         sp.Children.Add(hint);
         return sp;
@@ -325,7 +337,7 @@ internal sealed class OverviewView : View
             row.Children.Add(t);
             row.ToolTip = s.When;
             string url = s.Url;
-            row.MouseLeftButtonUp += (o, e) => Ui.OpenUrl(url);
+            row.MouseLeftButtonUp += (o, e) => { e.Handled = true; Ui.OpenUrl(url); };
             sp.Children.Add(row);
         }
         return sp;
@@ -398,7 +410,7 @@ internal sealed class OverviewView : View
             g.Children.Add(v);
             g.ToolTip = (rel.Name.Length > 0 ? rel.Name + " - " : "") + Fmt.N(rel.Downloads) + " downloads";
             string url = rel.Url;
-            g.MouseLeftButtonUp += (s, e) => Ui.OpenUrl(url);
+            g.MouseLeftButtonUp += (s, e) => { e.Handled = true; Ui.OpenUrl(url); };
             sp.Children.Add(g);
         }
         return sp;

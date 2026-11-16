@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.5.0 (2026-11-16)
+
+### New
+- **Every block on the Overview is clickable** and opens detailed statistics, with "Back to overview" to return:
+  - **Downloads**: downloads per day since the first refresh (with 7-day average), totals over time, a table per
+    repository (total, last refresh, 7 days, per day, releases), platforms and top files
+  - **Stars**: stars per day from the exact GitHub dates, a table per repository and the full list of stargazers
+  - **Views** and **Clones**: per day for all repositories together (with unique visitors / cloners), a table per
+    repository, and for views the referrers and popular pages
+  - **Milestones**: every milestone with the date it was reached, progress and an estimate for the ones still to come
+  - **Releases** and **Downloaded files**: complete, sortable lists (file sizes, downloads per day since publishing)
+  - **Forks** and **Open issues** per repository
+- Tables are sortable by clicking a column; double-click a row to open it on GitHub.
+
 ## 2.4.1 (2026-11-16)
 
 ### Changed

@@ -53,6 +53,12 @@ Everything on one page:
 
 ![Overview panels](screenshots/overview-panels.png)
 
+**Click any card or panel** for detailed statistics: downloads, stars, views, clones, milestones, releases, files,
+forks or open issues, each with a chart per day and sortable tables (double-click a row to open it on GitHub).
+"Back to overview" returns. Clicking a repository, star or release *inside* a panel opens it on GitHub instead.
+
+![Detail page: downloads](screenshots/detail-downloads.png)
+
 ## Repositories
 
 ![Repositories](screenshots/repositories.png)
