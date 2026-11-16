@@ -55,12 +55,15 @@ history on your own PC and tells you when something happens. No website, no acco
 
 <table>
 <tr>
+<td colspan="2"><img src="docs/screenshots/overview-panels.png" alt="Overview panels"><br><sub><b>Overview</b>: every number on one page, with dates along the chart and panels for top repositories, downloads per day, latest stars, traffic and more</sub></td>
+</tr>
+<tr>
 <td width="50%"><img src="docs/screenshots/repositories.png" alt="Repositories"><br><sub><b>Repositories</b>: search, sort and a chart per repo</sub></td>
 <td width="50%"><img src="docs/screenshots/insights.png" alt="Insights"><br><sub><b>Insights</b>: top files and downloads per platform</sub></td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/settings.png" alt="Settings"><br><sub><b>Settings</b>: token test, data options, auto-save</sub></td>
-<td><img src="docs/screenshots/settings-repos.png" alt="Settings: repositories"><br><sub><b>Hide repositories</b>, milestones and accent colours</sub></td>
+<td><img src="docs/screenshots/settings.png" alt="Settings"><br><sub><b>Settings</b>: what your token can read, with pre-filled GitHub links</sub></td>
+<td><img src="docs/screenshots/settings-repos.png" alt="Settings: repositories"><br><sub><b>Refresh every</b> (Auto, 15 min to 24 h), hide repositories, milestones</sub></td>
 </tr>
 <tr>
 <td colspan="2"><img src="docs/screenshots/widget-styles.png" alt="Ten widget styles"><br><sub><b>Desktop widget</b>: ten styles to choose from</sub></td>

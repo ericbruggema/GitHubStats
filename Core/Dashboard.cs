@@ -260,7 +260,9 @@ internal sealed class Dashboard
         db.TracksTraffic = app.Cfg.TrackTraffic;
         bool rateIsCurrent = rt != null && rt.Limit > 0 && (d.Auth == app.AuthFp || rt.Checked == 0 && !db.HasToken);
         db.RateText = rateIsCurrent ? "API requests left: " + N(rt!.Remaining) + " / " + N(rt.Limit)
-            : db.HasToken ? "Token set: up to 5,000 requests per hour" : rt != null && rt.Limit > 0 ? "API requests left: " + N(rt.Remaining) + " / " + N(rt.Limit) : "";
+            : db.HasToken ? "Token set: up to 5,000 requests per hour"
+            : rt != null && rt.Limit > 0 && rt.Limit <= 60 ? "API requests left: " + N(rt.Remaining) + " / " + N(rt.Limit)
+            : "No token: 60 requests per hour";
 
         var prog = new List<string>();
         if (d.Pending.Count > 0) prog.Add("release data: " + N(Math.Max(0, repos.Count - d.Pending.Count)) + " of " + N(repos.Count) + " repositories");
