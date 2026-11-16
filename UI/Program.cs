@@ -80,6 +80,27 @@ internal static class Host
         App.Poll(); // starting the program counts as opening it; the 4-per-day limit still applies
 
         if (App.Cfg.CheckUpdates && Clock.Now() - State.LastUpdateCheck > 86400) _ = CheckUpdateAsync(false);
+        _ = RecheckAccessAsync();
+    }
+
+    /// <summary>
+    /// At start: when the last refresh could not read star dates or traffic, check whether the token can now
+    /// (for example a scope was ticked on GitHub) and refresh at once if so. Costs a few requests, only in that case.
+    /// </summary>
+    private static async Task RecheckAccessAsync()
+    {
+        try
+        {
+            var d = App.Data;
+            if (App.Cfg.Token.Length == 0 || (d.StarsNote == null && d.TrafficNote == null)) return;
+            string? sample = d.Repos.Values.Where(r => !r.Fork).OrderByDescending(r => r.Stars).Select(r => r.Name).FirstOrDefault();
+            string? starred = d.Repos.Values.Where(r => r.Stars > 0).OrderBy(r => r.Stars).Select(r => r.Name).FirstOrDefault();
+            var rep = await Tools.TokenReportAsync(App.Cfg.Token, App.Cfg.User, sample, starred);
+            if (!rep.Valid) return;
+            if ((rep.Stars == TrafficAccess.Yes && d.StarsNote != null) || (rep.Traffic == TrafficAccess.Yes && d.TrafficNote != null))
+                App.RefreshForNewAccess();
+        }
+        catch (Exception ex) { Logger.Write("Access re-check failed: " + ex.Message); }
     }
 
     public static Version CurrentVersion

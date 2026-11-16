@@ -23,6 +23,8 @@ internal sealed class TokenReport
     public string NeededPermission = "";
     public string TrafficError = "";
     public string SampleRepo = "";
+    /// <summary>Set by the Settings screen when the check started a refresh because of new permissions.</summary>
+    public bool RefreshStarted;
 
     public bool FineGrained => Kind == "fine-grained";
 

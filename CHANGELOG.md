@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.3.1 (2026-11-16)
+
+### Fixed
+- A new token, or new permissions on the same token (for example *public_repo* ticked on GitHub), did not refresh
+  anything until the next scheduled refresh, and traffic stayed blocked for up to a day. Now a full refresh starts
+  at once: when you save a new token, when **Check** finds permissions the last refresh didn't have, and at startup
+  when the last refresh recorded missing access and the token now has it.
+
 ## 2.3.0 (2026-11-16)
 
 ### New

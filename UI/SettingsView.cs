@@ -37,6 +37,7 @@ internal sealed class SettingsView : View
     private readonly StackPanel _tokenResult = new();
     private readonly DispatcherTimer _tokenTimer = new() { Interval = TimeSpan.FromMilliseconds(1500) };
     private bool _reportDone;
+    private string _accessKey = "";
     private Func<string> _freq = () => "360";
     private FrameworkElement? _freqPanel;
     private readonly TextBlock _freqInfo = Ui.Text("", 11.5, "Muted", false, true);
@@ -361,7 +362,9 @@ internal sealed class SettingsView : View
         ui.Save();
         string? autoErr = Host.SetAutostart(_autostart.IsChecked == true);
         Host.ApplyUi();
-        if (cfg.User != oldUser || cfg.Token != oldToken) Host.App.Poll(); // the 4-per-day limit still applies
+        // a new token (or user) may read more than the old one: fetch everything again right away
+        if (cfg.Token != oldToken) { Host.App.RefreshForNewAccess(); _accessKey = ""; }
+        else if (cfg.User != oldUser) Host.App.Poll();
 
         string? problem = err ?? autoErr;
         _status.Tag = problem == null ? null : "error";
@@ -412,7 +415,23 @@ internal sealed class SettingsView : View
             string? sample = data.Repos.Values.Where(r => !r.Fork).OrderByDescending(r => r.Stars).Select(r => r.Name).FirstOrDefault();
             string? starred = data.Repos.Values.Where(r => r.Stars > 0).OrderBy(r => r.Stars).Select(r => r.Name).FirstOrDefault();
             var rep = await Tools.TokenReportAsync(token, user, sample, starred);
-            if (rep.Valid && token == Host.App.Cfg.Token) Host.App.UpdateRate(rep.Limit, rep.Remaining, rep.Reset);
+            if (rep.Valid && token == Host.App.Cfg.Token)
+            {
+                Host.App.UpdateRate(rep.Limit, rep.Remaining, rep.Reset);
+                // the token can read something the last refresh could not (for example public_repo was just ticked
+                // on the same token): refresh at once instead of waiting for the next scheduled refresh
+                var d = Host.App.Data;
+                bool starsNew = rep.Stars == TrafficAccess.Yes && d.StarsNote != null;
+                bool trafficNew = rep.Traffic == TrafficAccess.Yes && d.TrafficNote != null;
+                string key = rep.Stars + "|" + rep.Traffic;
+                if ((starsNew || trafficNew) && key != _accessKey)
+                {
+                    _accessKey = key;
+                    bool started = Host.App.RefreshForNewAccess();
+                    _refreshInfo.Text = started ? "New permissions found: refreshing everything now..." : "New permissions found: used by the refresh that is running.";
+                    rep.RefreshStarted = true;
+                }
+            }
             ShowReport(rep, token.Length > 0, user);
         }
         catch (Exception ex)
@@ -451,6 +470,8 @@ internal sealed class SettingsView : View
         parts.Add(r.Expires != null ? "expires " + ShortDate(r.Expires) : "no expiry date");
         parts.Add(Fmt.N(r.Limit) + " requests per hour (" + Fmt.N(r.Remaining) + " left)");
         p.Children.Add(S.Check(true, "Token works: " + string.Join("  ·  ", parts)));
+        if (r.RefreshStarted)
+            p.Children.Add(S.Check(true, "This token can read more than the last refresh could, so GitHub Stats is fetching everything again now."));
         if (r.Scopes != null)
             p.Children.Add(S.Desc("Classic token scopes: " + (r.Scopes.Count == 0 ? "none ticked" : string.Join(", ", r.Scopes))));
         if (r.OtherOwner)

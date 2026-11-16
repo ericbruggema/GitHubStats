@@ -229,6 +229,28 @@ internal sealed class App
               + "Your token needs repository access: tick \"public_repo\" on a classic token, or use a fine-grained token with your repositories. Settings > What your token can read shows how."
             : note;
 
+    /// <summary>
+    /// A new token, or new permissions on the same token: forget what the old rights could not read and start a full
+    /// refresh right away, whatever the refresh interval says. Returns false when a refresh is already running.
+    /// </summary>
+    public bool RefreshForNewAccess()
+    {
+        lock (_gate)
+        {
+            var d = Clone(_data);
+            d.TrafficNote = null;      // try traffic again (it is otherwise retried once a day)
+            d.TrafficNoteAuth = "";
+            d.StarsNote = null;
+            d.NextAttempt = 0;         // a rate-limit pause of the old token says nothing about this one
+            if (d.Auth != AuthFp) d.Rate = null; // the limit shown belonged to the old token
+            _data = d;
+        }
+        Logger.Write("Token or permissions changed: refreshing now.");
+        if (Running) { RaiseChanged(); return false; }
+        Poll(force: true);
+        return true;
+    }
+
     public void Poll() => Poll(false);
 
     public void Poll(bool force)
