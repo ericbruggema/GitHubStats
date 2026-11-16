@@ -36,11 +36,21 @@ history out.
 
 ## Overview
 
-Cards with the totals (downloads, stars, forks, repositories, releases, open issues) and their change since the last
-refresh and over 7 days, plus one chart with *all repositories over time*. **Hover over a chart** to see the exact
-numbers for that moment.
+Everything on one page:
+
+- **Cards**: downloads, stars, views and clones (14 days, with unique visitors and cloners), downloads per day,
+  next milestone with a progress bar, repositories, releases, forks and open issues.
+- **Growth**: downloads and stars since the last refresh, in 24 hours, 7 days and 30 days (`*` = not enough history
+  yet for the whole period).
+- **All repositories over time**: one chart with dates along the bottom. **Hover over a chart** to see the exact
+  numbers for that moment.
+- **Panels**: top repositories, downloads per day (heatmap), latest stars, traffic (most viewed, referrers), latest
+  releases, most downloaded files, platforms and highlights. They fill as many columns as the window is wide; click a
+  row to open it on GitHub.
 
 ![Overview](screenshots/overview.png)
+
+![Overview panels](screenshots/overview-panels.png)
 
 ## Repositories
 

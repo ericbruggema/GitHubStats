@@ -32,57 +32,6 @@ internal abstract class View : Grid
     }
 }
 
-// ============================================================================ Overview
-
-internal sealed class OverviewView : View
-{
-    private readonly StackPanel _root;
-    private readonly ChartControl _chart = new();
-
-    public OverviewView()
-    {
-        Children.Add(Scroll(out _root));
-    }
-
-    public override void Update(Dashboard db)
-    {
-        _root.Children.Clear();
-        _root.Children.Add(Title("GitHub stats - " + db.User));
-        var sub = Ui.Text("Public repositories only  |  last complete refresh: " + db.LastRefresh + "  |  next refresh possible after " + db.NextRefresh, 12, "Muted", false, true);
-        sub.Margin = new Thickness(0, 0, 0, 14);
-        _root.Children.Add(sub);
-
-        foreach (var m in db.Messages) _root.Children.Add(Ui.Banner(m));
-
-        if (!db.HasData)
-        {
-            _root.Children.Add(Ui.Box(Ui.Text(db.Running ? "Fetching the repository list from GitHub..." : "No data yet. The first refresh starts automatically.", 13, "Muted", false, true)));
-            return;
-        }
-
-        var wrap = new WrapPanel();
-        foreach (var c in db.Cards) wrap.Children.Add(Ui.Card(c.Label, c.Value, c.Detail, c.Trend));
-        _root.Children.Add(wrap);
-
-        _root.Children.Add(Ui.Heading("All repositories over time"));
-        _chart.SetModel(db.All);
-        if (_chart.Parent is Border old) old.Child = null;
-        var box = Ui.Box(_chart);
-        _root.Children.Add(box);
-        if (db.All != null)
-        {
-            var cap = Ui.Text(db.All.Caption, 11, "Muted", false, true);
-            cap.Margin = new Thickness(2, 4, 0, 0);
-            _root.Children.Add(cap);
-        }
-
-        var foot = Ui.Text("Download counts only include files attached to releases (not the automatic source code archives), and GitHub counts every download, including bots, CI runs and mirrors. "
-            + "Refreshes every " + Every(Host.App.Cfg.IntervalSeconds) + " (Settings > Data). " + db.RateText, 11, "Muted", false, true);
-        foot.Margin = new Thickness(0, 22, 0, 0);
-        _root.Children.Add(foot);
-    }
-}
-
 // ============================================================================ Repositories
 
 internal sealed class ReposView : View

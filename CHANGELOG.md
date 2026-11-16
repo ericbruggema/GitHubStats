@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.4.0 (2026-11-16)
+
+### New
+- **Overview shows everything on one page**: cards for downloads, stars, views, clones, downloads per day, next
+  milestone, repositories, releases, forks and open issues; a growth table (last refresh, 24 hours, 7 days, 30 days);
+  the big chart; and panels for top repositories, downloads per day (heatmap), latest stars, traffic with most viewed
+  repositories and referrers, latest releases, most downloaded files, platforms and highlights. The panels fill as many
+  columns as the window allows.
+- **Dates along every chart**: evenly spaced dates (hours, days, weeks or months, whatever fits) with light grid lines,
+  instead of only the first and last date.
+
 ## 2.3.1 (2026-11-16)
 
 ### Fixed

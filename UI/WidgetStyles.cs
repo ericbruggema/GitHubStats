@@ -243,6 +243,40 @@ internal static class WidgetStyles
     {
         const int weeks = 8;
         var days = DailyDownloads(weeks * 7);
+        var grid = HeatGrid(days, weeks, 14);
+        var sp = new StackPanel();
+        var head = new DockPanel { LastChildFill = false };
+        head.Children.Add(Label("Downloads per day"));
+        long sum7 = days.Skip(days.Count - 7).Sum(d => d.Value ?? 0);
+        var s7 = Ui.Text(Fmt.N(sum7) + " this week", 11, "Up");
+        s7.Margin = new Thickness(14, 0, 0, 0);
+        DockPanel.SetDock(s7, Dock.Right);
+        head.Children.Add(s7);
+        sp.Children.Add(head);
+        grid.Margin = new Thickness(-1.5, 6, 0, 4);
+        sp.Children.Add(grid);
+        sp.Children.Add(HeatLegend());
+        return Card(sp, 0);
+    }
+
+    /// <summary>The legend under a heatmap: less ... more.</summary>
+    public static FrameworkElement HeatLegend()
+    {
+        var legend = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        legend.Children.Add(Ui.Text("less ", 10, "Muted"));
+        foreach (var o in new[] { 0.0, 0.3, 0.5, 0.75, 1.0 })
+        {
+            var l = new Border { Width = 9, Height = 9, CornerRadius = new CornerRadius(2), Margin = new Thickness(1.5, 0, 1.5, 0), Opacity = o == 0 ? 1 : o };
+            l.Res(Border.BackgroundProperty, o == 0 ? "Accent" : "S2");
+            legend.Children.Add(l);
+        }
+        legend.Children.Add(Ui.Text(" more", 10, "Muted"));
+        return legend;
+    }
+
+    /// <summary>GitHub-style grid of downloads per day: one column per week (Monday on top), the last column ends today.</summary>
+    public static Grid HeatGrid(List<(DateTime Day, long? Value)> days, int weeks, double size)
+    {
         var known = days.Where(d => d.Value.HasValue && d.Value > 0).Select(d => d.Value!.Value).OrderBy(v => v).ToList();
         long q1 = Q(known, 0.25), q2 = Q(known, 0.5), q3 = Q(known, 0.75);
 
@@ -259,7 +293,7 @@ internal static class WidgetStyles
             int col = offset / 7, row = offset % 7;
             if (col >= weeks) break;
             var (day, val) = days[idx];
-            var cell = new Border { Width = 14, Height = 14, CornerRadius = new CornerRadius(3), Margin = new Thickness(1.5) };
+            var cell = new Border { Width = size, Height = size, CornerRadius = new CornerRadius(size / 4.5), Margin = new Thickness(1.5) };
             if (val == null) { cell.Res(Border.BackgroundProperty, "Accent"); cell.ToolTip = day.ToString("ddd d MMM") + ": no data"; }
             else
             {
@@ -271,29 +305,7 @@ internal static class WidgetStyles
             Grid.SetRow(cell, row);
             grid.Children.Add(cell);
         }
-
-        var sp = new StackPanel();
-        var head = new DockPanel { LastChildFill = false };
-        head.Children.Add(Label("Downloads per day"));
-        long sum7 = days.Skip(days.Count - 7).Sum(d => d.Value ?? 0);
-        var s7 = Ui.Text(Fmt.N(sum7) + " this week", 11, "Up");
-        s7.Margin = new Thickness(14, 0, 0, 0);
-        DockPanel.SetDock(s7, Dock.Right);
-        head.Children.Add(s7);
-        sp.Children.Add(head);
-        grid.Margin = new Thickness(-1.5, 6, 0, 4);
-        sp.Children.Add(grid);
-        var legend = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        legend.Children.Add(Ui.Text("less ", 10, "Muted"));
-        foreach (var o in new[] { 0.0, 0.3, 0.5, 0.75, 1.0 })
-        {
-            var l = new Border { Width = 9, Height = 9, CornerRadius = new CornerRadius(2), Margin = new Thickness(1.5, 0, 1.5, 0), Opacity = o == 0 ? 1 : o };
-            l.Res(Border.BackgroundProperty, o == 0 ? "Accent" : "S2");
-            legend.Children.Add(l);
-        }
-        legend.Children.Add(Ui.Text(" more", 10, "Muted"));
-        sp.Children.Add(legend);
-        return Card(sp, 0);
+        return grid;
     }
 
     private static long Q(List<long> sorted, double q) => sorted.Count == 0 ? 0 : sorted[Math.Min(sorted.Count - 1, (int)(q * sorted.Count))];
@@ -509,7 +521,7 @@ internal static class WidgetStyles
     // ================================================================== data helpers
 
     /// <summary>Views and clones of the last 14 days over all shown repositories (null = no traffic data).</summary>
-    private static (long? Views, long? Clones) TrafficTotals()
+    public static (long? Views, long? Clones) TrafficTotals()
     {
         var shown = Host.App.Data.Repos;
         var tr = Host.App.Traffic.Where(kv => shown.ContainsKey(kv.Key)).Select(kv => kv.Value).ToList();
@@ -529,7 +541,7 @@ internal static class WidgetStyles
     }
 
     /// <summary>Downloads per calendar day (local time), oldest first, ending today. null = no snapshot that day.</summary>
-    private static List<(DateTime Day, long? Value)> DailyDownloads(int count)
+    public static List<(DateTime Day, long? Value)> DailyDownloads(int count)
     {
         var snaps = Host.App.Data.Snapshots;
         var lastOfDay = new SortedDictionary<DateTime, long>();

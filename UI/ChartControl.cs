@@ -90,11 +90,21 @@ internal sealed class ChartControl : FrameworkElement
             dc.DrawText(lb, new Point(L - 6 - lb.Width, y - lb.Height / 2));
         }
 
-        // x labels
-        var first = FT(m.AxisDate(m.T[0]), 11, muted);
-        var last = FT(m.AxisDate(m.T[m.Count - 1]), 11, muted);
-        dc.DrawText(first, new Point(L, h - B + 5));
-        dc.DrawText(last, new Point(L + _plot.Width - last.Width, h - B + 5));
+        // x axis: evenly spaced dates (days, weeks or months, whatever fits) with a light vertical line each
+        var gridPen = new Pen(border, 1) { DashStyle = new DashStyle(new double[] { 2, 3 }, 0) };
+        double lastRight = double.MinValue;
+        foreach (var (t, label) in DateTicks(m, _plot.Width))
+        {
+            double x = L + (double)(t - m.T[0]) / Math.Max(1, m.T[^1] - m.T[0]) * _plot.Width;
+            if (x < L - 0.5 || x > L + _plot.Width + 0.5) continue;
+            var ft = FT(label, 11, muted);
+            double lx2 = Math.Max(L - 4, Math.Min(L + _plot.Width + R - 8 - ft.Width, x - ft.Width / 2));
+            if (lx2 < lastRight + 10) continue; // never let two labels touch
+            dc.DrawLine(gridPen, new Point(x, T), new Point(x, T + _plot.Height));
+            dc.DrawLine(borderPen, new Point(x, T + _plot.Height), new Point(x, T + _plot.Height + 4));
+            dc.DrawText(ft, new Point(lx2, h - B + 6));
+            lastRight = lx2 + ft.Width;
+        }
 
         // lines
         int n = m.Count;
@@ -139,6 +149,65 @@ internal sealed class ChartControl : FrameworkElement
         }
 
         if (_hover >= 0 && _hover < n) DrawHover(dc, m, lay, _hover, text, muted, border, card, w);
+    }
+
+    private static readonly (long Sec, int Months)[] Steps =
+    {
+        (3600, 0), (2 * 3600, 0), (3 * 3600, 0), (6 * 3600, 0), (12 * 3600, 0),
+        (86400, 0), (2 * 86400, 0), (3 * 86400, 0), (7 * 86400, 0), (14 * 86400, 0),
+        (0, 1), (0, 2), (0, 3), (0, 6), (0, 12),
+    };
+
+    /// <summary>Tick times and labels for the x axis: the smallest step that leaves about 90 px per label.</summary>
+    private static List<(long T, string Label)> DateTicks(ChartModel m, double width)
+    {
+        var list = new List<(long, string)>();
+        long t0 = m.T[0], t1 = m.T[^1], span = Math.Max(1, t1 - t0);
+        int maxTicks = Math.Max(2, (int)(width / 90));
+        var tz = m.Log ? Clock.Tz : TimeZoneInfo.Utc; // same time zone as the hover labels
+        var ci = CultureInfo.InvariantCulture;
+        DateTime ToLocal(long t) => TimeZoneInfo.ConvertTime(DateTimeOffset.FromUnixTimeSeconds(t), tz).DateTime;
+        long ToUnix(DateTime local) => new DateTimeOffset(local, tz.GetUtcOffset(local)).ToUnixTimeSeconds();
+
+        foreach (var (sec, months) in Steps)
+        {
+            double approx = sec > 0 ? sec : months * 30.4 * 86400;
+            if (span / approx > maxTicks) continue;
+            var start = ToLocal(t0);
+            DateTime cur;
+            if (months > 0)
+            {
+                cur = new DateTime(start.Year, start.Month, 1).AddMonths(1);
+                while ((cur.Month - 1) % months != 0) cur = cur.AddMonths(1);
+            }
+            else if (sec >= 86400)
+            {
+                cur = start.Date.AddDays(1);
+                if (sec == 7 * 86400 || sec == 14 * 86400) while (cur.DayOfWeek != DayOfWeek.Monday) cur = cur.AddDays(1);
+            }
+            else
+            {
+                cur = start.Date.AddHours(Math.Ceiling(start.TimeOfDay.TotalHours / (sec / 3600.0)) * (sec / 3600.0));
+            }
+            string fmt = months >= 12 ? "yyyy" : months > 0 ? (span > 330 * 86400 ? "MMM yyyy" : "MMM") : sec < 86400 ? "HH:mm" : "MMM d";
+            for (int guard = 0; guard < 200; guard++)
+            {
+                long u = ToUnix(cur);
+                if (u > t1) break;
+                if (u >= t0)
+                {
+                    string label = sec > 0 && sec < 86400 && cur.Hour == 0 ? cur.ToString("MMM d", ci) : cur.ToString(fmt, ci);
+                    list.Add((u, label));
+                }
+                cur = months > 0 ? cur.AddMonths(months) : cur.AddSeconds(sec);
+            }
+            if (list.Count >= 2) return list;
+            list.Clear();
+        }
+        // very short ranges: just the start and the end
+        list.Add((t0, m.AxisDate(t0)));
+        list.Add((t1, m.AxisDate(t1)));
+        return list;
     }
 
     private void DrawHover(DrawingContext dc, ChartModel m, ChartLayout lay, int i, Brush text, Brush muted, Brush border, Brush card, double w)
