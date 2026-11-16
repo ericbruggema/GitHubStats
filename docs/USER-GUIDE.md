@@ -14,13 +14,23 @@
 
 ## How refreshing works
 
-GitHub Stats asks GitHub for new numbers **at most 4 times a day** (every 6 hours at the earliest).
+GitHub Stats asks GitHub for new numbers on a schedule you choose in **Settings → Data → Refresh every**:
+
+| | Without a token | With a token |
+|---|---|---|
+| **Auto** (default) | every 6 hours | every 30 minutes |
+| Fastest you can choose | 6 hours | 15 minutes |
+| **↻ Refresh now** possible | 1 hour after the previous refresh | 5 minutes after the previous refresh |
+
+The setting shows how many API requests a refresh costs and how much of your hourly limit that uses.
 Every refresh stores a snapshot, and those snapshots make the charts and the *change last / 7d / per day* columns.
+The last 2 days keep every snapshot; older history keeps one per 6 hours, so frequent refreshing never pushes old
+history out.
 
 - **Background refresh** (Settings → Data): on = refresh by itself while the program runs. Off = only
   when you open the window.
-- **↻ Refresh now** (status bar): fetch new numbers right away. To stay well within GitHub's limits this is possible
-  **1 hour after the previous refresh**. Hover over it to see when.
+- **↻ Refresh now**: in the status bar, in **Settings → Data**, in the tray menu and in the widget's right-click menu.
+  Hover over it (or look in Settings) to see when it is possible again.
 - The status bar shows the last refresh, a live countdown to the next one and how many API requests are left.
 - If GitHub's rate limit is reached, the refresh pauses and continues by itself when the limit resets. Nothing is lost.
 

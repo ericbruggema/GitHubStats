@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Markup;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace GitHubStats;
@@ -33,7 +34,13 @@ internal sealed class SettingsView : View
     private bool _loading = true;
     private Func<string> _wStyle = () => "glass", _wSize = () => "1";
     private string _wStyleSaved = "", _wSizeSaved = "";
-    private readonly StackPanel _tokenResult = new() { Margin = new Thickness(0, 6, 0, 0) };
+    private readonly StackPanel _tokenResult = new();
+    private readonly DispatcherTimer _tokenTimer = new() { Interval = TimeSpan.FromMilliseconds(1500) };
+    private bool _reportDone;
+    private Func<string> _freq = () => "360";
+    private FrameworkElement? _freqPanel;
+    private readonly TextBlock _freqInfo = Ui.Text("", 11.5, "Muted", false, true);
+    private readonly TextBlock _refreshInfo = Ui.Text("", 11.5, "Muted", false, true);
     private readonly Button _testBtn;
     private readonly WrapPanel _repoChips = new() { Margin = new Thickness(16, 0, 16, 12) };
     private readonly HashSet<string> _hidden;
@@ -76,7 +83,16 @@ internal sealed class SettingsView : View
         S.StyleInput(_token, 240);
         _tokenPlain = S.Input(_token.Password, 240);
         _tokenPlain.Visibility = Visibility.Collapsed;
-        _token.PasswordChanged += (s, e) => { if (_tokenPlain.Visibility != Visibility.Visible) _tokenPlain.Text = _token.Password; Changed(); };
+        _token.PasswordChanged += (s, e) =>
+        {
+            if (_tokenPlain.Visibility != Visibility.Visible) _tokenPlain.Text = _token.Password;
+            Changed();
+            UpdateFrequencyChoices();
+            // check the new token by itself shortly after it was pasted or typed
+            _tokenTimer.Stop();
+            _tokenTimer.Start();
+        };
+        _tokenTimer.Tick += (s, e) => { _tokenTimer.Stop(); TestToken(); };
         _tokenPlain.TextChanged += (s, e) => { if (_tokenPlain.Visibility == Visibility.Visible) _token.Password = _tokenPlain.Text; };
         var eye = S.IconBtn("", "Show / hide the token", () =>
         {
@@ -89,31 +105,16 @@ internal sealed class SettingsView : View
         tokenBox.Children.Add(_token);
         tokenBox.Children.Add(_tokenPlain);
         tokenBox.Children.Add(eye);
-        _testBtn = S.SmallBtn("Test", TestToken, new Thickness(6, 0, 0, 0));
-        _testBtn.ToolTip = "Check the token and see which features it unlocks";
+        _testBtn = S.SmallBtn("Check", TestToken, new Thickness(6, 0, 0, 0));
+        _testBtn.ToolTip = "Check the token again: what it is and what GitHub Stats may read with it";
         tokenBox.Children.Add(_testBtn);
 
         var tokenDesc = new StackPanel();
         tokenDesc.Children.Add(S.Desc("Optional, but without one GitHub allows only 60 requests per hour. Stored in config.json next to the program."));
         var links = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
-        links.Children.Add(S.Link("Create a token on GitHub", () => Ui.OpenUrl("https://github.com/settings/tokens")));
-        var which = S.Link("Which permissions?", () => { });
-        which.ToolTip = new ToolTip
-        {
-            MaxWidth = 380,
-            Content = new TextBlock
-            {
-                TextWrapping = TextWrapping.Wrap,
-                Text = "Downloads, stars and star dates: a classic token with NO scopes ticked is enough.\n\n" +
-                       "Traffic (views, clones, referrers) needs push access: a fine-grained token with \"Administration: read-only\" on your repositories, " +
-                       "or a classic token with the \"public_repo\" scope.",
-            },
-        };
-        ToolTipService.SetInitialShowDelay(which, 100);
-        ToolTipService.SetShowDuration(which, 60000);
-        links.Children.Add(which);
+        links.Children.Add(S.Link("Create a token (pre-filled)", () => Ui.OpenUrl(Tools.FineGrainedTemplateUrl)));
+        links.Children.Add(S.Link("Token guide", () => Ui.OpenUrl(AboutView.RepoUrl + "/blob/main/docs/TOKEN.md")));
         tokenDesc.Children.Add(links);
-        tokenDesc.Children.Add(_tokenResult);
         if (cfg.TokenFromEnv) tokenDesc.Children.Add(S.Desc("Currently using the GITHUB_TOKEN environment variable."));
 
         _rate = Ui.Text("", 11, "Muted");
@@ -125,6 +126,14 @@ internal sealed class SettingsView : View
             S.Row("Include forked repositories", null, _forks = S.Toggle(cfg.IncludeForks, Changed)));
         _root.Children.Add(_rate);
 
+        // ---- what the token can read (filled by TestToken)
+        var tl = Ui.Text("What your token can read", 14, "Text", true);
+        tl.Margin = new Thickness(2, 22, 0, 8);
+        _root.Children.Add(tl);
+        _tokenResult.Margin = new Thickness(16, 12, 16, 14);
+        _tokenResult.Children.Add(S.Desc(cfg.Token.Length > 0 ? "Checking..." : "No token yet."));
+        _root.Children.Add(Ui.Box(_tokenResult, 8, new Thickness(0)));
+
         // ---- data
         var st = S.Segmented(new[] { "auto", "on", "off" }, new[] { "Auto", "On", "Off" }, cfg.StarsDetail, Changed);
         _stars = st.Get;
@@ -133,7 +142,9 @@ internal sealed class SettingsView : View
         Section("Data",
             S.Row("Star dates and stargazers", S.Desc("Real dates of every star and who gave it. Auto = only with a token."), st.Panel),
             S.Row("Traffic history", S.Desc("Views, clones and referrers (GitHub keeps only 14 days, this program keeps them all). Auto = only with a token."), tr.Panel),
-            S.Row("Refresh in the background", S.Desc("Refresh by itself while the program runs, at most 4 times a day. Off = only when the window is opened."), _background = S.Toggle(cfg.BackgroundRefresh, Changed)));
+            S.Row("Refresh in the background", S.Desc("Refresh by itself while the program runs. Off = only when the window is opened."), _background = S.Toggle(cfg.BackgroundRefresh, Changed)),
+            FrequencyRow(cfg),
+            RefreshRow());
 
         // ---- repositories and milestones
         _hidden = new HashSet<string>(cfg.HiddenRepos, StringComparer.OrdinalIgnoreCase);
@@ -326,6 +337,7 @@ internal sealed class SettingsView : View
         cfg.Traffic = _traffic();
         cfg.BackgroundRefresh = _background.IsChecked == true;
         cfg.Notifications = _notify.IsChecked == true;
+        if (int.TryParse(_freq(), out int fm)) cfg.RefreshMinutes = fm;
         cfg.PublishDir = _publish.Text.Trim();
         cfg.HiddenRepos = _hidden.OrderBy(h => h, StringComparer.OrdinalIgnoreCase).ToList();
         cfg.Milestones = _milestones.Distinct().OrderBy(m => m).ToList();
@@ -363,6 +375,9 @@ internal sealed class SettingsView : View
     {
         // the fields keep what the user is typing; only the status line follows the data
         _rate.Text = db.RateText.Length > 0 ? db.RateText + "  |  last refresh " + db.LastRefresh : "";
+        UpdateFrequencyInfo();
+        UpdateRefreshInfo();
+        if (!_reportDone) { _reportDone = true; TestToken(); } // first time the Settings screen is shown
         var names = Host.App.AllRepoNames;
         string key = string.Join("\n", names);
         if (key == _repoKey) return;
@@ -384,8 +399,9 @@ internal sealed class SettingsView : View
 
     private async void TestToken()
     {
+        _reportDone = true;
         _tokenResult.Children.Clear();
-        _tokenResult.Children.Add(S.Desc("Testing..."));
+        _tokenResult.Children.Add(S.Desc("Checking the token with GitHub..."));
         _testBtn.IsEnabled = false;
         try
         {
@@ -394,17 +410,253 @@ internal sealed class SettingsView : View
             string user = _user.Text.Trim().Length > 0 ? _user.Text.Trim() : Host.App.Cfg.User;
             var data = Host.App.Data;
             string? sample = data.Repos.Values.Where(r => !r.Fork).OrderByDescending(r => r.Stars).Select(r => r.Name).FirstOrDefault();
-            var lines = await Tools.TestTokenAsync(token, user, sample);
-            _tokenResult.Children.Clear();
-            foreach (var (ok, text) in lines) _tokenResult.Children.Add(S.Check(ok, text));
+            string? starred = data.Repos.Values.Where(r => r.Stars > 0).OrderBy(r => r.Stars).Select(r => r.Name).FirstOrDefault();
+            var rep = await Tools.TokenReportAsync(token, user, sample, starred);
+            if (rep.Valid && token == Host.App.Cfg.Token) Host.App.UpdateRate(rep.Limit, rep.Remaining, rep.Reset);
+            ShowReport(rep, token.Length > 0, user);
         }
         catch (Exception ex)
         {
             _tokenResult.Children.Clear();
-            _tokenResult.Children.Add(S.Check(false, "The test failed: " + ex.Message));
+            _tokenResult.Children.Add(S.Check(false, "The check failed: " + ex.Message));
         }
         finally { _testBtn.IsEnabled = true; }
     }
+
+    /// <summary>Shows the token report: details, a check or cross per feature, and how to fix what's missing.</summary>
+    private void ShowReport(TokenReport r, bool hasToken, string user)
+    {
+        var p = _tokenResult;
+        p.Children.Clear();
+        if (r.Error != null)
+        {
+            p.Children.Add(S.Check(false, r.Error));
+            p.Children.Add(FixBox("Make a new token", FineGrainedSteps(), ("Open GitHub, pre-filled", Tools.FineGrainedTemplateUrl)));
+            return;
+        }
+        if (!hasToken)
+        {
+            p.Children.Add(S.Check(false, "No token: " + Fmt.N(r.Limit) + " requests per hour, shared by everything on this internet connection."));
+            p.Children.Add(Feature(true, "Repositories, releases and download counts", "Works without a token, but slowly for many repositories."));
+            p.Children.Add(Feature(false, "Star dates and who starred", "Since July 2026 GitHub only shows these to repository admins: needs a token with repository access."));
+            p.Children.Add(Feature(false, "Traffic: views, clones, referrers", "Needs a token with \"Administration: read-only\" (or a classic token with public_repo)."));
+            p.Children.Add(Feature(false, "Faster refreshing", "Without a token at most every 6 hours; with one every 15 minutes is possible."));
+            p.Children.Add(FixBox("Get a token in one minute", FineGrainedSteps(), ("Open GitHub, pre-filled", Tools.FineGrainedTemplateUrl)));
+            return;
+        }
+
+        // ---- the token itself
+        var parts = new List<string> { char.ToUpper(r.Kind[0]) + r.Kind[1..] + " token" };
+        if (r.Login.Length > 0) parts.Add("owner @" + r.Login);
+        parts.Add(r.Expires != null ? "expires " + ShortDate(r.Expires) : "no expiry date");
+        parts.Add(Fmt.N(r.Limit) + " requests per hour (" + Fmt.N(r.Remaining) + " left)");
+        p.Children.Add(S.Check(true, "Token works: " + string.Join("  ·  ", parts)));
+        if (r.Scopes != null)
+            p.Children.Add(S.Desc("Classic token scopes: " + (r.Scopes.Count == 0 ? "none ticked" : string.Join(", ", r.Scopes))));
+        if (r.OtherOwner)
+            p.Children.Add(S.Check(false, "This token belongs to @" + r.Login + ", but the program shows @" + user + ". Traffic only works for repositories the token's owner can push to."));
+
+        var sep = new Border { Height = 1, Margin = new Thickness(0, 10, 0, 4) };
+        sep.Res(Border.BackgroundProperty, "Border");
+        p.Children.Add(sep);
+
+        // ---- feature by feature
+        p.Children.Add(Feature(true, "Repositories, releases and download counts", r.FineGrained ? "Metadata: read-only (always included)." : "Public data, no scope needed."));
+        string access = r.FineGrained ? "access to your repositories" : "classic scope \"public_repo\"";
+        p.Children.Add(r.Stars switch
+        {
+            TrafficAccess.Yes => Feature(true, "Star dates and who starred", "Granted (tested on " + r.StarsRepo + ")."),
+            TrafficAccess.NoPermission => Feature(false, "Star dates and who starred", "Missing: " + access + ". Since July 2026 GitHub only shows who starred to repository admins and collaborators."),
+            _ => Feature(null, "Star dates and who starred", "Will be tested once a repository has stars."),
+        });
+        string trafficNeed = r.FineGrained ? "repository permission \"Administration: read-only\"" : "classic scope \"public_repo\"";
+        switch (r.Traffic)
+        {
+            case TrafficAccess.Yes:
+                p.Children.Add(Feature(true, "Traffic: views, clones, referrers, popular pages", "Granted (tested on " + r.SampleRepo + ")."));
+                break;
+            case TrafficAccess.Untested:
+                p.Children.Add(Feature(null, "Traffic: views, clones, referrers, popular pages", r.TrafficError.Length > 0 ? "Could not be tested: " + r.TrafficError : "Will be tested once your repositories are loaded."));
+                break;
+            default:
+                bool notIncluded = r.Traffic == TrafficAccess.RepoNotIncluded;
+                p.Children.Add(Feature(false, "Traffic: views, clones, referrers, popular pages",
+                    notIncluded ? "The token has no access to " + r.SampleRepo + ": that repository isn't in the token's repository list."
+                    : "Missing: " + trafficNeed + (r.NeededPermission.Length > 0 ? " (GitHub asks for: " + r.NeededPermission + ")." : ".")));
+                break;
+        }
+        p.Children.Add(Feature(true, "Faster refreshing", "Every 15 minutes is possible with this token (see Data below)."));
+
+        // ---- how to fix traffic
+        if (r.Traffic is TrafficAccess.NoPermission or TrafficAccess.RepoNotIncluded || r.Stars == TrafficAccess.NoPermission)
+        {
+            if (r.FineGrained)
+            {
+                p.Children.Add(FixBox("How to give the token \"Administration: read-only\" (unlocks star dates and traffic)", new[]
+                {
+                    "Open your token on GitHub: Settings > Developer settings > Personal access tokens > Fine-grained tokens > your token > Edit. Or make a new one with \"Open GitHub, pre-filled\".",
+                    "Repository access: choose All repositories (or Only select repositories and pick yours). Important: with \"Public repositories\" GitHub hides the Administration permission. That is why you can't find it.",
+                    "Permissions > Repository permissions > Administration: choose Read-only. Metadata: read-only is added by itself.",
+                    "Click Update (or Generate token). An edited token keeps its value, so just click Check; a new one must be pasted above.",
+                }, ("Open my fine-grained tokens", Tools.FineGrainedListUrl), ("Open GitHub, pre-filled", Tools.FineGrainedTemplateUrl)));
+            }
+            else
+            {
+                p.Children.Add(FixBox("How to give the token \"public_repo\" (unlocks star dates and traffic)", new[]
+                {
+                    "Open the token on GitHub (Settings > Developer settings > Personal access tokens > Tokens (classic) > your token), tick public_repo and click Update token. Or make a new one with \"Open GitHub, pre-filled\".",
+                    "GitHub only gives traffic to people with push access, so the token must belong to " + user + " (or a collaborator).",
+                    "An updated token keeps its value, so just click Check; a new one must be pasted above.",
+                }, ("Open my classic tokens", "https://github.com/settings/tokens"), ("Open GitHub, pre-filled", Tools.ClassicTemplateUrl)));
+            }
+        }
+    }
+
+    private static string ShortDate(string githubDate) =>
+        DateTime.TryParse(githubDate.Replace(" UTC", "Z"), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal, out var d)
+            ? d.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture) : githubDate;
+
+    private static string[] FineGrainedSteps() => new[]
+    {
+        "Click \"Open GitHub, pre-filled\". GitHub opens the new-token page with the name and \"Administration: read-only\" already filled in.",
+        "Repository access: choose All repositories. (With \"Public repositories\" the Administration permission is hidden.)",
+        "Check that Permissions > Repository permissions > Administration says Read-only, choose an expiry, then Generate token.",
+        "Copy the token (it starts with github_pat_) and paste it in the field above. It is checked by itself.",
+    };
+
+    /// <summary>One feature line: check (true), cross (false) or question mark (null), with an explanation.</summary>
+    private static FrameworkElement Feature(bool? ok, string title, string detail)
+    {
+        var g = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
+        var m = new TextBlock
+        {
+            Text = ok == true ? "" : ok == false ? "" : "",
+            FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
+            FontSize = 12,
+            Width = 22,
+            Margin = new Thickness(0, 2, 6, 0),
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+        m.Res(TextBlock.ForegroundProperty, ok == true ? "Up" : ok == false ? "Down" : "Muted");
+        DockPanel.SetDock(m, Dock.Left);
+        g.Children.Add(m);
+        var t = new StackPanel();
+        t.Children.Add(Ui.Text(title, 13));
+        t.Children.Add(S.Desc(detail));
+        g.Children.Add(t);
+        return g;
+    }
+
+    /// <summary>A highlighted box with numbered steps and buttons that open GitHub.</summary>
+    private static FrameworkElement FixBox(string title, string[] steps, params (string Label, string Url)[] buttons)
+    {
+        var sp = new StackPanel();
+        sp.Children.Add(Ui.Text(title, 13, "Text", true));
+        int n = 1;
+        foreach (var st in steps)
+        {
+            var row = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
+            var num = new Border { Width = 20, Height = 20, CornerRadius = new CornerRadius(10), Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Top };
+            num.Res(Border.BackgroundProperty, "Link");
+            num.Child = new TextBlock { Text = (n++).ToString(), Foreground = Brushes.White, FontSize = 11, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(num, Dock.Left);
+            row.Children.Add(num);
+            var t = Ui.Text(st, 12.5, "Text", false, true);
+            t.LineHeight = 19;
+            row.Children.Add(t);
+            sp.Children.Add(row);
+        }
+        var bp = new WrapPanel { Margin = new Thickness(30, 10, 0, 0) };
+        for (int i = buttons.Length - 1; i >= 0; i--)
+        {
+            var (label, url) = buttons[i];
+            bp.Children.Add(Ui.Btn(label, () => Ui.OpenUrl(url), i == buttons.Length - 1));
+        }
+        sp.Children.Add(bp);
+        var box = new Border { Child = sp, CornerRadius = new CornerRadius(8), Padding = new Thickness(14, 12, 14, 12), Margin = new Thickness(0, 12, 0, 0), BorderThickness = new Thickness(1) };
+        box.Res(Border.BackgroundProperty, "Bg");
+        box.Res(Border.BorderBrushProperty, "Link");
+        return box;
+    }
+
+    // ---------------------------------------------------------------- refresh frequency
+
+    private static readonly (int Min, string Label)[] Frequencies =
+        { (0, "Auto"), (15, "15 min"), (30, "30 min"), (60, "1 hour"), (120, "2 hours"), (180, "3 hours"), (360, "6 hours"), (720, "12 hours"), (1440, "24 hours") };
+
+    private FrameworkElement FrequencyRow(Config cfg)
+    {
+        string cur = cfg.RefreshMinutes <= 0 ? "0" : Frequencies.Where(f => f.Min > 0).OrderBy(f => Math.Abs(f.Min - cfg.RefreshMinutes)).First().Min.ToString();
+        var seg = S.Segmented(Frequencies.Select(f => f.Min.ToString()).ToArray(), Frequencies.Select(f => f.Label).ToArray(), cur, () => { Changed(); UpdateFrequencyInfo(); }, wrap: true);
+        _freq = seg.Get;
+        _freqPanel = seg.Panel;
+        var desc = new StackPanel();
+        desc.Children.Add(S.Desc("How often GitHub Stats fetches new numbers. Auto = every 30 minutes with a token, every 6 hours without. Faster than 6 hours needs a token (5,000 requests per hour instead of 60)."));
+        _freqInfo.Margin = new Thickness(0, 4, 0, 0);
+        desc.Children.Add(_freqInfo);
+        UpdateFrequencyChoices();
+        UpdateFrequencyInfo();
+        return S.Row("Refresh every", desc, seg.Panel);
+    }
+
+    private void UpdateFrequencyChoices()
+    {
+        if (_freqPanel is not Border { Child: Panel inner }) return;
+        bool token = _token.Password.Trim().Length > 0 || Host.App.Cfg.TokenFromEnv;
+        foreach (var rb in inner.Children.OfType<RadioButton>())
+        {
+            int m = int.Parse((string)rb.Tag);
+            bool needsToken = m > 0 && m < Config.MinMinutesWithoutToken;
+            rb.IsEnabled = token || !needsToken;
+            rb.Opacity = rb.IsEnabled ? 1 : 0.4;
+            rb.ToolTip = rb.IsEnabled ? null : "Needs a token";
+            ToolTipService.SetShowOnDisabled(rb, true);
+        }
+    }
+
+    private void UpdateFrequencyInfo()
+    {
+        if (!int.TryParse(_freq(), out int min)) return;
+        var cfg = Host.App.Cfg;
+        bool token = cfg.Token.Length > 0;
+        int eff = min <= 0 ? (token ? Config.AutoMinutesWithToken : Config.MinMinutesWithoutToken)
+            : Math.Max(min, token ? Config.MinMinutesWithToken : Config.MinMinutesWithoutToken);
+        int repos = Math.Max(1, Host.App.AllRepoNames.Count);
+        // one list request, then per repository: releases, star dates (when tracked) and 4 traffic requests (when tracked)
+        int perRefresh = 1 + repos + (cfg.TrackStars ? repos : 0) + (cfg.TrackTraffic ? 4 * repos : 0);
+        double perHour = perRefresh * 60.0 / eff;
+        long limit = token ? 5000 : 60;
+        _freqInfo.Text = "About " + Fmt.N(perRefresh) + " requests per refresh, so about " + Fmt.N((long)Math.Ceiling(perHour)) + " per hour of the " + Fmt.N(limit) + " allowed."
+            + (min <= 0 ? " Auto: every " + (eff < 60 ? eff + " minutes" : eff / 60 + " hours") + " now." : eff != min ? " Without a token this runs every 6 hours." : "");
+        _freqInfo.Res(TextBlock.ForegroundProperty, perHour > limit * 0.5 ? "Down" : "Muted");
+    }
+
+    // ---------------------------------------------------------------- refresh now
+
+    private FrameworkElement RefreshRow()
+    {
+        var btn = S.SmallBtn("↻  Refresh now", () =>
+        {
+            string? why = Host.App.RefreshNow();
+            _refreshInfo.Text = why ?? "Refreshing...";
+        }, new Thickness(0));
+        var desc = new StackPanel();
+        desc.Children.Add(S.Desc("Fetch the latest numbers right away. Possible 5 minutes after the previous refresh with a token, 1 hour without one."));
+        _refreshInfo.Margin = new Thickness(0, 4, 0, 0);
+        desc.Children.Add(_refreshInfo);
+        return S.Row("Refresh now", desc, btn);
+    }
+
+    private void UpdateRefreshInfo()
+    {
+        var app = Host.App;
+        long now = Clock.Now(), at = app.ManualAllowedAt;
+        _refreshInfo.Text = app.Running ? "Refreshing..."
+            : now >= at ? "Available now. Next automatic refresh " + When(app.NextAutoAt) + "."
+            : "Possible again at " + Fmt.Hm(at) + ". Next automatic refresh " + When(app.NextAutoAt) + ".";
+    }
+
+    private static string When(long t) => t <= Clock.Now() + 60 ? "any moment" : "at " + Fmt.Hm(t);
 
     // ---------------------------------------------------------------- milestones
 

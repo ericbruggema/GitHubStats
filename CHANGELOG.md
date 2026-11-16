@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.3.0 (2026-11-16)
+
+### New
+- **What your token can read** (Settings): checked as soon as you paste a token. Shows the kind of token, owner,
+  expiry date, request limit and (classic) scopes, plus a ✓ or ✗ per feature, each tested on your own repositories.
+  Anything missing comes with step-by-step instructions and a button that opens GitHub **pre-filled**
+  (fine-grained: *Administration: read-only*; classic: *public_repo*).
+- **Refresh every** is adjustable: Auto (every 30 minutes with a token, every 6 hours without), or 15 min to 24 hours.
+  Shows how many API requests that costs per hour.
+- **Refresh now** in Settings, the tray menu and the widget menu, too. With a token it works 5 minutes after the
+  previous refresh (1 hour without).
+- History stays compact with frequent refreshing: every snapshot of the last 2 days, then one per 6 hours.
+
+### Fixed
+- The main screens showed conclusions from before you added a token ("API requests left: 45 / 60", "star dates
+  need a token"). They now follow the token you use, and the request counter updates as soon as the token is checked.
+- Star dates stopped with a bare "Not Found": since July 2026 GitHub only lists stargazers to repository admins
+  and collaborators. GitHub Stats now explains this and how to fix it (*public_repo* or a fine-grained token).
+
 ## 2.2.0 (2026-11-15)
 
 ### New: ten widget styles

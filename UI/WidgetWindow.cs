@@ -16,6 +16,7 @@ namespace GitHubStats;
 internal sealed class WidgetWindow : Window
 {
     private readonly ContentControl _host = new();
+    private readonly MenuItem _refreshItem;
     private readonly MenuItem _topmostItem, _styleMenu, _sizeMenu, _tilesMenu, _opacityMenu, _autoHideItem;
     private readonly DispatcherTimer _dockTimer;
     private Dashboard? _db;
@@ -43,6 +44,9 @@ internal sealed class WidgetWindow : Window
         var open = new MenuItem { Header = "Open GitHub Stats" };
         open.Click += (s, e) => Host.ShowMain();
         menu.Items.Add(open);
+        _refreshItem = new MenuItem { Header = "Refresh now" };
+        _refreshItem.Click += (s, e) => Host.App.RefreshNow();
+        menu.Items.Add(_refreshItem);
         menu.Items.Add(new Separator());
 
         _styleMenu = new MenuItem { Header = "Style" };
@@ -159,6 +163,10 @@ internal sealed class WidgetWindow : Window
         _autoHideItem.Visibility = _style == "dock" ? Visibility.Visible : Visibility.Collapsed;
         _autoHideItem.IsChecked = Host.State.WidgetAutoHide;
         _topmostItem.IsChecked = Topmost;
+        long at = Host.App.ManualAllowedAt;
+        bool can = !Host.App.Running && Clock.Now() >= at;
+        _refreshItem.IsEnabled = can;
+        _refreshItem.Header = Host.App.Running ? "Refreshing..." : can ? "Refresh now" : "Refresh now (possible at " + Fmt.Hm(at) + ")";
     }
 
     private void Rebuild()

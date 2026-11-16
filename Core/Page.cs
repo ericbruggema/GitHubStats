@@ -372,8 +372,8 @@ internal static class Page
 
         sb.Append("\n    <footer>\n        Download counts only include files attached to releases (not the automatic source code archives), and GitHub counts every download, including bots, CI runs and mirrors.\n")
           .Append(app.Cfg.BackgroundRefresh
-              ? "        A full refresh starts at most 4 times a day, by itself while this program is running.\n        "
-              : "        A full refresh starts at most 4 times a day, when the page is loaded.\n        ");
+              ? "        A full refresh starts every " + (app.Cfg.IntervalSeconds / 60) + " minutes, by itself while this program is running.\n        "
+              : "        A full refresh starts at most every " + (app.Cfg.IntervalSeconds / 60) + " minutes, when the page is loaded.\n        ");
         sb.Append(app.Cfg.Token.Length > 0
             ? "Using an API token."
             : "No API token: GitHub allows 60 requests/hour per IP address. A token in config.json avoids this, and unlocks star dates and traffic.");

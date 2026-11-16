@@ -48,7 +48,8 @@ history on your own PC and tells you when something happens. No website, no acco
 | 💾 **Backup & restore** | One zip with your settings and all history. |
 | 🎨 **Light, dark & accent colours** | Follows Windows, or pick light, dark and one of six accent colours. |
 | 🔒 **Portable & private** | One `.exe`. Settings and data live next to it. Nothing is sent anywhere except the GitHub API. |
-| 🛡️ **Gentle on GitHub** | Refreshes at most 4 times a day automatically, a manual refresh at most once an hour, and it resumes cleanly after a rate limit. |
+| 🛡️ **Gentle on GitHub** | Refresh as often as your token allows: every 30 minutes with a token (adjustable, down to 15), every 6 hours without. Resumes cleanly after a rate limit. |
+| 🔑 **Token check** | Shows what your token is, when it expires and what it may read, with a pre-filled GitHub link for anything missing. |
 
 ## Screenshots
 

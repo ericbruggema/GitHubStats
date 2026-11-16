@@ -10,6 +10,7 @@ internal sealed class TrayHost : IDisposable
     private readonly System.Windows.Forms.ContextMenuStrip _menu;
     private readonly System.Windows.Forms.ToolStripMenuItem _status;
     private readonly System.Windows.Forms.ToolStripMenuItem _widget;
+    private readonly System.Windows.Forms.ToolStripMenuItem _refresh;
     private readonly System.Windows.Threading.DispatcherTimer _hoverTimer;
     private long _lastMove;
     private int _lx, _ly;
@@ -32,6 +33,9 @@ internal sealed class TrayHost : IDisposable
 
         _status = new System.Windows.Forms.ToolStripMenuItem("GitHub Stats") { Enabled = false };
         _menu.Items.Add(_status);
+        _refresh = new System.Windows.Forms.ToolStripMenuItem("Refresh now");
+        _refresh.Click += (s, e) => { string? why = Host.App.RefreshNow(); if (why != null) Balloon("Not yet", why); };
+        _menu.Items.Add(_refresh);
         _menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
 
         _widget = new System.Windows.Forms.ToolStripMenuItem("Show desktop widget");
@@ -115,6 +119,10 @@ internal sealed class TrayHost : IDisposable
     {
         var db = Host.LastDashboard;
         _widget.Checked = Host.State.Widget;
+        long at = Host.App.ManualAllowedAt;
+        bool can = !Host.App.Running && Clock.Now() >= at;
+        _refresh.Enabled = can;
+        _refresh.Text = Host.App.Running ? "Refreshing..." : can ? "Refresh now" : "Refresh now (possible at " + Fmt.Hm(at) + ")";
         _status.Text = db == null ? "GitHub Stats"
             : db.Running ? "Refreshing from GitHub..."
             : db.LastSuccess > 0 ? "Last refresh " + Fmt.Hm(db.LastSuccess) + ", next after " + db.NextRefresh

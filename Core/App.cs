@@ -171,8 +171,6 @@ internal sealed class App
     }
 
     /// <summary>Called for every page load and by the background timer: starts a refresh when one is due.</summary>
-    /// <summary>A manual "Refresh now" is allowed this long after the start of the last cycle.</summary>
-    public const int ManualIntervalSeconds = 3600;
 
     /// <summary>When the next automatic refresh may start (unix seconds).</summary>
     public long NextAutoAt
@@ -192,7 +190,7 @@ internal sealed class App
         {
             var d = _data;
             long at = d.NextAttempt;
-            if (d.PendingAll == 0 && d.CycleStart > 0) at = Math.Max(at, d.CycleStart + ManualIntervalSeconds);
+            if (d.PendingAll == 0 && d.CycleStart > 0) at = Math.Max(at, d.CycleStart + Cfg.ManualSeconds);
             return Math.Min(at, NextAutoAt);
         }
     }
@@ -206,6 +204,30 @@ internal sealed class App
         Poll(force: true);
         return null;
     }
+
+    /// <summary>
+    /// The token check in Settings read the live rate limit for the token in use: store it, so every screen shows the
+    /// real limit at once instead of the one from the last refresh (which may have run without a token).
+    /// </summary>
+    public void UpdateRate(long limit, long remaining, long reset)
+    {
+        lock (_gate)
+        {
+            var d = Clone(_data);
+            if (d.Auth != AuthFp) d.NextAttempt = 0; // a rate-limit pause of the old token says nothing about this one
+            d.Rate = new RateInfo { Limit = limit, Remaining = remaining, Reset = reset, Checked = Clock.Now() };
+            d.Auth = AuthFp;
+            _data = d;
+        }
+        RaiseChanged();
+    }
+
+    /// <summary>Notes stored by older versions said only "Not Found": explain what GitHub changed and how to fix it.</summary>
+    public static string ExplainStarsNote(string note) =>
+        note.StartsWith("Could not read the stargazers", StringComparison.Ordinal) && (note.Contains("Not Found") || note.Contains("Forbidden"))
+            ? "Star dates: GitHub only shows who starred a repository to its admins and collaborators (since July 2026). "
+              + "Your token needs repository access: tick \"public_repo\" on a classic token, or use a fine-grained token with your repositories. Settings > What your token can read shows how."
+            : note;
 
     public void Poll() => Poll(false);
 
@@ -270,6 +292,18 @@ internal sealed class App
             Interlocked.Exchange(ref _running, 0);
             RaiseChanged();
         }
+    }
+
+    /// <summary>
+    /// Keeps the history small without losing its shape: every snapshot of the last 2 days, then one per 6 hours
+    /// (the last of each block). Frequent refreshes therefore never push old history out.
+    /// </summary>
+    private static List<Snapshot> Thin(List<Snapshot> all)
+    {
+        long cutoff = Clock.Now() - 2 * 86400;
+        var old = all.Where(s => s.T < cutoff).GroupBy(s => s.T / 21600).Select(g => g.OrderBy(s => s.T).Last());
+        var list = old.Concat(all.Where(s => s.T >= cutoff)).OrderBy(s => s.T).ToList();
+        return list.Count > Config.MaxSnapshots ? list.TakeLast(Config.MaxSnapshots).ToList() : list;
     }
 
     // ------------------------------------------------------------------ refresh
@@ -503,7 +537,7 @@ internal sealed class App
             snap.Repos[name] = new long[] { r.Stars, r.Downloads, r.ReleaseCount };
         }
         d.Snapshots.Add(snap);
-        if (d.Snapshots.Count > Config.MaxSnapshots) d.Snapshots = d.Snapshots.TakeLast(Config.MaxSnapshots).ToList();
+        d.Snapshots = Thin(d.Snapshots);
         d.LastSuccess = Clock.Now();
         d.LastError = null;
         d.NextAttempt = 0;
@@ -571,6 +605,8 @@ internal sealed class App
         if (res.Items == null)
         {
             if (res.Status == 0 || Rates.Blocked(gh.Rate)) return (true, res.Error, null);
+            if (res.Status is 401 or 403 or 404)
+                return (false, null, ExplainStarsNote("Could not read the stargazers of " + repo.Name + ": Not Found"));
             return (false, null, "Could not read the stargazers of " + repo.Name + ": " + res.Error);
         }
 

@@ -18,6 +18,12 @@ internal abstract class View : Grid
         return new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = root };
     }
 
+    protected static string Every(int seconds)
+    {
+        int m = seconds / 60;
+        return m < 60 ? m + " minutes" : m % 60 == 0 ? (m / 60 == 1 ? "hour" : m / 60 + " hours") : (m / 60.0).ToString("0.#") + " hours";
+    }
+
     protected static TextBlock Title(string text)
     {
         var t = Ui.Text(text, 22, "Text", true);
@@ -71,7 +77,7 @@ internal sealed class OverviewView : View
         }
 
         var foot = Ui.Text("Download counts only include files attached to releases (not the automatic source code archives), and GitHub counts every download, including bots, CI runs and mirrors. "
-            + "A full refresh starts at most 4 times a day. " + db.RateText, 11, "Muted", false, true);
+            + "Refreshes every " + Every(Host.App.Cfg.IntervalSeconds) + " (Settings > Data). " + db.RateText, 11, "Muted", false, true);
         foot.Margin = new Thickness(0, 22, 0, 0);
         _root.Children.Add(foot);
     }
@@ -300,9 +306,12 @@ internal sealed class StarsView : View
     public override void Update(Dashboard db)
     {
         _grid.ItemsSource = db.Stars;
-        _note.Text = db.Stars.Count == 0
-            ? "No star dates yet. They need a GitHub token (Settings) and appear after the first complete refresh."
-            : "Exact times and names as reported by GitHub. Double-click a row to open the profile.";
+        _note.Text = db.Stars.Count > 0 ? "Exact times and names as reported by GitHub. Double-click a row to open the profile."
+            : !db.HasToken ? "No star dates yet. They need a GitHub token (Settings) and appear after the next complete refresh."
+            : !db.TracksStars ? "Star dates are switched off (Settings > Data > Star dates and stargazers)."
+            : Host.App.Data.StarsNote is string note
+                ? App.ExplainStarsNote(note)
+            : "Star dates are collected during the next complete refresh (" + db.NextRefresh + "), or use Refresh now.";
     }
 }
 
@@ -332,7 +341,10 @@ internal sealed class InsightsView : View
 
         _root.Children.Add(Ui.Heading("Where visitors come from (last 14 days, all repositories)"));
         if (db.Referrers.Count == 0)
-            _root.Children.Add(Ui.Text(db.HasTraffic ? "No referrers reported." : "Traffic needs a token with push access to your repositories (see Settings).", 12, "Muted", false, true));
+            _root.Children.Add(Ui.Text(db.HasTraffic ? "No referrers reported."
+                : !db.HasToken ? "Traffic needs a token with push access to your repositories (see Settings)."
+                : !db.TracksTraffic ? "Traffic is switched off (Settings > Data > Traffic history)."
+                : "No traffic data yet. It needs \"Administration: read-only\" (fine-grained token) or the \"public_repo\" scope (classic token). Settings > What your token can read shows whether your token has it.", 12, "Muted", false, true));
         else
         {
             long max = Math.Max(1, db.Referrers.Max(r => r.Count));

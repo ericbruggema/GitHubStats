@@ -13,6 +13,8 @@ internal sealed class GhResult
     /// <summary>HTTP status; 0 = network problem.</summary>
     public int Status;
     public bool Ok => Error == null;
+    /// <summary>Token-related response headers (lower-case names): x-oauth-scopes, github-authentication-token-expiration, x-accepted-github-permissions.</summary>
+    public Dictionary<string, string> Headers = new();
 }
 
 internal static class Rates
@@ -104,6 +106,10 @@ internal sealed class GitHubClient
                 Rate = new RateInfo { Limit = limit, Remaining = remaining, Reset = reset, Checked = Clock.Now() };
             }
 
+            var heads = new Dictionary<string, string>();
+            foreach (var h in new[] { "X-OAuth-Scopes", "github-authentication-token-expiration", "X-Accepted-GitHub-Permissions", "X-Accepted-OAuth-Scopes" })
+                if (resp.Headers.TryGetValues(h, out var hv)) heads[h.ToLowerInvariant()] = string.Join(",", hv);
+
             int code = (int)resp.StatusCode;
             string body = await resp.Content.ReadAsStringAsync();
             JsonDocument? doc = null;
@@ -117,10 +123,10 @@ internal sealed class GitHubClient
                         && doc.RootElement.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String
                         ? m.GetString() ?? ("HTTP " + code) : "HTTP " + code;
                     if ((code == 403 || code == 429) && Rate != null && Rate.Remaining <= 0) msg = Rates.Msg(Rate);
-                    return new GhResult { Error = msg, Status = code };
+                    return new GhResult { Error = msg, Status = code, Headers = heads };
                 }
                 if (doc == null) return new GhResult { Error = "Unexpected response from GitHub", Status = code };
-                return new GhResult { Root = doc.RootElement.Clone(), Status = code };
+                return new GhResult { Root = doc.RootElement.Clone(), Status = code, Headers = heads };
             }
         }
         catch (Exception ex)

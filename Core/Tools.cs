@@ -2,6 +2,39 @@ using System.Text.Json;
 
 namespace GitHubStats;
 
+internal enum TrafficAccess { Untested, Yes, NoPermission, RepoNotIncluded }
+
+/// <summary>What a token is and what GitHub Stats may read with it.</summary>
+internal sealed class TokenReport
+{
+    public string Kind = "";
+    public bool Valid;
+    public string? Error;
+    public string Login = "";
+    public bool OtherOwner;
+    /// <summary>Classic tokens only: the ticked scopes (empty list = none ticked).</summary>
+    public List<string>? Scopes;
+    public string? Expires;
+    public long Limit, Remaining, Reset;
+    public TrafficAccess Traffic;
+    /// <summary>Star dates: since July 2026 GitHub only lists stargazers to repository admins and collaborators.</summary>
+    public TrafficAccess Stars;
+    public string StarsRepo = "";
+    public string NeededPermission = "";
+    public string TrafficError = "";
+    public string SampleRepo = "";
+
+    public bool FineGrained => Kind == "fine-grained";
+
+    public static string KindOf(string token) =>
+        token.Length == 0 ? "none"
+        : token.StartsWith("github_pat_", StringComparison.Ordinal) ? "fine-grained"
+        : token.StartsWith("ghp_", StringComparison.Ordinal) ? "classic"
+        : token.StartsWith("gho_", StringComparison.Ordinal) ? "OAuth app"
+        : token.StartsWith("ghu_", StringComparison.Ordinal) || token.StartsWith("ghs_", StringComparison.Ordinal) ? "GitHub App"
+        : "unknown";
+}
+
 internal sealed class UpdateInfo
 {
     public bool Newer;
@@ -10,48 +43,77 @@ internal sealed class UpdateInfo
     public string? Error;
 }
 
-/// <summary>One-off GitHub checks used by the Settings screen: token test and update check.</summary>
+/// <summary>One-off GitHub checks used by the Settings screen: token report and update check.</summary>
 internal static class Tools
 {
-    /// <summary>Checks a token and what it unlocks. Each line: (ok, text). Uses /rate_limit (free) and one traffic request.</summary>
-    public static async Task<List<(bool Ok, string Text)>> TestTokenAsync(string token, string user, string? sampleRepo)
+    /// <summary>
+    /// Reads a token's details and checks, feature by feature, what it may read. Costs at most 3 requests
+    /// (/rate_limit is free, /user, and one traffic request on <paramref name="sampleRepo"/>).
+    /// </summary>
+    public static async Task<TokenReport> TokenReportAsync(string token, string user, string? sampleRepo, string? starredRepo = null)
     {
-        var lines = new List<(bool, string)>();
+        var rep = new TokenReport { Kind = TokenReport.KindOf(token) };
         var gh = new GitHubClient(token, null);
+
         var rl = await gh.GetAsync("/rate_limit");
         if (!rl.Ok)
         {
-            if (rl.Status == 401) lines.Add((false, "The token is not valid (GitHub says: " + rl.Error + "). Check that it was copied completely and has not expired."));
-            else lines.Add((false, "Could not reach GitHub: " + rl.Error));
-            return lines;
+            rep.Error = rl.Status == 401
+                ? "GitHub doesn't accept this token (" + rl.Error + "). Check that it was copied completely and hasn't expired or been deleted."
+                : "Could not reach GitHub: " + rl.Error;
+            return rep;
         }
-        long limit = 0, left = 0;
         if (rl.Root.TryGetProperty("resources", out var res) && res.TryGetProperty("core", out var core))
         {
-            limit = Json.Long(core, "limit");
-            left = Json.Long(core, "remaining");
+            rep.Limit = Json.Long(core, "limit");
+            rep.Remaining = Json.Long(core, "remaining");
+            rep.Reset = Json.Long(core, "reset");
         }
-        if (token.Length == 0)
-        {
-            lines.Add((false, "No token: " + Fmt.N(limit) + " requests per hour, shared by everything on this internet connection."));
-            lines.Add((false, "Star dates and traffic need a token."));
-            return lines;
-        }
-        lines.Add((true, "Token works: " + Fmt.N(limit) + " requests per hour (" + Fmt.N(left) + " left now)."));
-        lines.Add((true, "Downloads, stars and star dates."));
+        if (token.Length == 0) return rep;
 
-        if (sampleRepo == null)
+        var me = await gh.GetAsync("/user");
+        if (me.Ok) rep.Login = Json.Str(me.Root, "login");
+        foreach (var h in new[] { me.Headers, rl.Headers })
         {
-            lines.Add((false, "Traffic could not be tested yet (no repositories loaded)."));
-            return lines;
+            if (rep.Scopes == null && h.TryGetValue("x-oauth-scopes", out var sc)) rep.Scopes = sc.Split(',').Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
+            if (rep.Expires == null && h.TryGetValue("github-authentication-token-expiration", out var ex)) rep.Expires = ex;
         }
+        rep.Valid = true;
+        rep.OtherOwner = rep.Login.Length > 0 && !rep.Login.Equals(user, StringComparison.OrdinalIgnoreCase);
+
+        // star dates: one stargazer of a repository that has stars
+        if (starredRepo != null)
+        {
+            rep.StarsRepo = starredRepo;
+            var st = await gh.GetAsync("/repos/" + Uri.EscapeDataString(user) + "/" + Uri.EscapeDataString(starredRepo) + "/stargazers?per_page=1");
+            rep.Stars = st.Ok ? TrafficAccess.Yes : st.Status is 401 or 403 or 404 ? TrafficAccess.NoPermission : TrafficAccess.Untested;
+        }
+
+        if (sampleRepo == null) { rep.Traffic = TrafficAccess.Untested; return rep; }
+        rep.SampleRepo = sampleRepo;
         var tr = await gh.GetAsync("/repos/" + Uri.EscapeDataString(user) + "/" + Uri.EscapeDataString(sampleRepo) + "/traffic/views");
-        if (tr.Ok) lines.Add((true, "Traffic (views, clones, referrers)."));
-        else if (tr.Status is 403 or 404)
-            lines.Add((false, "Traffic: no access. It needs push access: a fine-grained token with \"Administration: read-only\", or a classic token with the \"public_repo\" scope."));
-        else lines.Add((false, "Traffic could not be tested: " + tr.Error));
-        return lines;
+        if (tr.Ok) rep.Traffic = TrafficAccess.Yes;
+        else
+        {
+            tr.Headers.TryGetValue("x-accepted-github-permissions", out var need);
+            rep.NeededPermission = need ?? "";
+            rep.Traffic = tr.Status == 404 ? TrafficAccess.RepoNotIncluded
+                : tr.Status == 403 ? TrafficAccess.NoPermission
+                : TrafficAccess.Untested;
+            if (rep.Traffic == TrafficAccess.Untested) rep.TrafficError = tr.Error ?? "";
+        }
+        return rep;
     }
+
+    /// <summary>GitHub's page for a new fine-grained token, already filled in for GitHub Stats (template URL, 2025).</summary>
+    public const string FineGrainedTemplateUrl =
+        "https://github.com/settings/personal-access-tokens/new?name=GitHub%20Stats&description=Read-only%20statistics%20for%20GitHub%20Stats%20(downloads%2C%20stars%2C%20traffic)&administration=read";
+
+    /// <summary>GitHub's page for a new classic token with only the public_repo scope ticked.</summary>
+    public const string ClassicTemplateUrl = "https://github.com/settings/tokens/new?scopes=public_repo&description=GitHub%20Stats";
+
+    /// <summary>The list of your fine-grained tokens (to edit an existing one).</summary>
+    public const string FineGrainedListUrl = "https://github.com/settings/personal-access-tokens";
 
     /// <summary>Asks GitHub for the latest release of <paramref name="repo"/> ("owner/name") and compares it with <paramref name="current"/>.</summary>
     public static async Task<UpdateInfo> CheckUpdateAsync(string repo, string token, Version current)

@@ -123,6 +123,7 @@ internal sealed class Dashboard
     public string LatestStar = "";
     public string TopFile = "";
     public double? DownloadsPerDay;
+    public bool HasToken, TracksStars, TracksTraffic;
 
     private App _app = null!;
 
@@ -254,7 +255,12 @@ internal sealed class Dashboard
         db.LastRefresh = d.LastSuccess > 0 ? Dt(d.LastSuccess) + " (" + Ago(d.LastSuccess) + ")" : "not yet";
         db.NextRefresh = d.CycleStart > 0 || d.NextAttempt > 0 ? Hm(Math.Max(nextAt, now)) : "soon";
         var rt = d.Rate;
-        db.RateText = rt != null && rt.Limit > 0 ? "API requests left: " + N(rt.Remaining) + " / " + N(rt.Limit) : "";
+        db.HasToken = app.Cfg.Token.Length > 0;
+        db.TracksStars = app.Cfg.TrackStars;
+        db.TracksTraffic = app.Cfg.TrackTraffic;
+        bool rateIsCurrent = rt != null && rt.Limit > 0 && (d.Auth == app.AuthFp || rt.Checked == 0 && !db.HasToken);
+        db.RateText = rateIsCurrent ? "API requests left: " + N(rt!.Remaining) + " / " + N(rt.Limit)
+            : db.HasToken ? "Token set: up to 5,000 requests per hour" : rt != null && rt.Limit > 0 ? "API requests left: " + N(rt.Remaining) + " / " + N(rt.Limit) : "";
 
         var prog = new List<string>();
         if (d.Pending.Count > 0) prog.Add("release data: " + N(Math.Max(0, repos.Count - d.Pending.Count)) + " of " + N(repos.Count) + " repositories");
@@ -273,7 +279,7 @@ internal sealed class Dashboard
         else if (d.LastError != null)
             db.Messages.Add("Last refresh failed: " + d.LastError + (db.HasData ? " Showing cached data." : "") + " Next attempt after " + Hm(Math.Max(nextAt, now)) + ".");
         if (d.TrafficNote != null && app.Cfg.TrackTraffic) db.Messages.Add(d.TrafficNote);
-        if (d.StarsNote != null) db.Messages.Add(d.StarsNote);
+        if (d.StarsNote != null) db.Messages.Add(App.ExplainStarsNote(d.StarsNote));
         return db;
     }
 

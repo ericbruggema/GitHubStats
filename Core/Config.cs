@@ -16,7 +16,7 @@ internal sealed class Config
     public string StarsDetail { get; set; } = "auto";
     /// <summary>"auto" (only with a token), "on" or "off": views, clones, referrers (needs push access).</summary>
     public string Traffic { get; set; } = "auto";
-    /// <summary>Refresh by itself while the program runs (still at most 4 times a day).</summary>
+    /// <summary>Refresh by itself while the program runs (every <see cref="RefreshMinutes"/>).</summary>
     public bool BackgroundRefresh { get; set; } = true;
     public bool Notifications { get; set; } = true;
     public List<long> Milestones { get; set; } = new() { 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000 };
@@ -31,12 +31,37 @@ internal sealed class Config
     /// <summary>"owner/repo" whose GitHub releases contain new versions of this program.</summary>
     public string UpdateRepo { get; set; } = "ericbruggema/GitHubStats";
 
-    // A refresh cycle never starts more than 4 times a day. (GHSTATS_MININTERVAL is a test hook.)
-    public static readonly int MinIntervalSeconds =
-        int.TryParse(Environment.GetEnvironmentVariable("GHSTATS_MININTERVAL"), out int mi) && mi > 0 ? mi : 6 * 3600;
+    /// <summary>Minutes between automatic refreshes; 0 = auto (30 minutes with a token, 6 hours without).
+    /// With a token this can go down to 15; without one it is at least 6 hours.</summary>
+    public int RefreshMinutes { get; set; }
+
+    public const int AutoMinutesWithToken = 30;
+
+    public const int MinMinutesWithToken = 15;
+    public const int MinMinutesWithoutToken = 360;
+
+    /// <summary>The settings in use (set by <see cref="Load"/>), so static helpers can read the refresh interval.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public static Config? Current { get; private set; }
+
+    private static readonly int TestInterval =
+        int.TryParse(Environment.GetEnvironmentVariable("GHSTATS_MININTERVAL"), out int mi) && mi > 0 ? mi : 0; // test hook
+
+    /// <summary>Seconds between two automatic refresh cycles (the chosen interval, but never below what the token allows).</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int IntervalSeconds => TestInterval > 0 ? TestInterval
+        : (RefreshMinutes <= 0
+            ? (Token.Length > 0 ? AutoMinutesWithToken : MinMinutesWithoutToken)
+            : Math.Max(RefreshMinutes, Token.Length > 0 ? MinMinutesWithToken : MinMinutesWithoutToken)) * 60;
+
+    /// <summary>"Refresh now" is possible this long after the previous refresh: 5 minutes with a token, 1 hour without.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int ManualSeconds => Token.Length > 0 ? 300 : 3600;
+
+    public static int MinIntervalSeconds => Current?.IntervalSeconds ?? 6 * 3600;
     public static readonly int TickSeconds =
         int.TryParse(Environment.GetEnvironmentVariable("GHSTATS_TICK"), out int tk) && tk > 0 ? tk : 60;
-    public const int MaxSnapshots = 500;
+    public const int MaxSnapshots = 4000;
     public const int MaxEvents = 300;
     public const int MaxStarPages = 50; // 5,000 stars per repo; older ones beyond that are not listed individually
 
@@ -85,9 +110,13 @@ internal sealed class Config
   // "auto" (when a token is set; quietly skipped if the token has no push access), "on" or "off"
   "traffic": "auto",
 
-  // Refresh by itself while the program is running (still at most 4 times a day).
+  // Refresh by itself while the program is running (every refresh_minutes, see below).
   // false = refresh only when the window is opened.
   "background_refresh": true,
+
+  // Minutes between automatic refreshes. 0 = auto: every 30 minutes with a token, every 6 hours without.
+  // Without a token at least 360 (6 hours), with a token at least 15.
+  "refresh_minutes": 0,
 
   // Windows notifications for new stars and download milestones (needs the tray icon)
   "notifications": true,
@@ -145,7 +174,10 @@ internal sealed class Config
             .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(h => h, StringComparer.OrdinalIgnoreCase).ToList();
         c.UpdateRepo = (c.UpdateRepo ?? "").Trim().Trim('/');
 
+        c.RefreshMinutes = c.RefreshMinutes <= 0 ? 0 : Math.Max(MinMinutesWithToken, Math.Min(24 * 60, c.RefreshMinutes));
+
         if (string.IsNullOrWhiteSpace(c.DataDir)) c.DataDir = "data";
+        Current = c;
         return c;
     }
 

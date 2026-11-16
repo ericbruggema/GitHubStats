@@ -9,15 +9,27 @@ GitHub only counts files attached to releases, not the automatic *Source code (z
 And it counts every download, including bots, CI runs and mirrors.
 
 **Why can't I refresh whenever I want?**
-To be gentle with GitHub's API (and your rate limit), automatic refreshes happen at most every 6 hours, and
-**↻ Refresh now** at most once an hour. The numbers on GitHub don't change that fast anyway.
+You almost can: with a token, choose **Settings → Data → Refresh every → 15 min**, and **↻ Refresh now** works
+5 minutes after the previous refresh. Without a token GitHub allows only 60 requests per hour, so then it's every
+6 hours at the fastest and Refresh now once an hour.
+
+**Settings says my token works, but there are no star dates (or the Stars page says "Not Found").**
+Since July 2026 GitHub only shows who starred a repository to its admins and collaborators. Your token needs
+repository access: tick `public_repo` on a classic token, or use a fine-grained token with your repositories and
+*Administration: read-only*. **Settings → What your token can read** shows exactly what's missing, with a
+pre-filled link. See the [token guide](TOKEN.md).
+
+**I can't find "Administration" when making a fine-grained token.**
+Under **Repository access**, choose *All repositories* or *Only select repositories*. With *Public repositories*
+GitHub hides that permission.
 
 **The Stars page is empty.**
-Star dates need a token. Add one in Settings (see the [token guide](TOKEN.md)). The list fills after the next complete refresh.
+Star dates need a token with repository access (see the question above and the [token guide](TOKEN.md)).
+The list fills after the next complete refresh, or press **↻ Refresh now**.
 
 **Traffic says the token has no access.**
 GitHub only gives traffic data to people with push access. Use a fine-grained token with
-*Administration: read-only*, or a classic token with the `public_repo` scope. Click **Test** in Settings to check.
+*Administration: read-only*, or a classic token with the `public_repo` scope. **Settings → What your token can read** checks it.
 
 **I hid a repository. Is its data gone?**
 No. Hidden repositories are only left out of what you see and export. Show it again and its full history is back.
