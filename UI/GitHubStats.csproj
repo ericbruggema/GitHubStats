@@ -12,7 +12,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <AssemblyName>GitHubStats</AssemblyName>
     <RootNamespace>GitHubStats</RootNamespace>
-    <Version>2.4.0</Version>
+    <Version>2.4.1</Version>
     <Product>GitHub Stats</Product>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>

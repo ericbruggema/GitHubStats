@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.4.1 (2026-11-16)
+
+### Changed
+- **Downloads per day** chart on the Overview: one bar per day with a dashed 7-day average line, dates along the bottom
+  and the exact number on hover. It sits next to a smaller "All repositories over time" chart.
+- More on the first screen: smaller cards and growth in one slim line (last refresh, 24h, 7d and 30d for downloads
+  and stars) instead of a large table.
+
 ## 2.4.0 (2026-11-16)
 
 ### New

@@ -14,7 +14,8 @@ namespace GitHubStats;
 internal sealed class OverviewView : View
 {
     private readonly StackPanel _root;
-    private readonly ChartControl _chart = new() { Height = 260 };
+    private readonly ChartControl _chart = new() { Height = 200 };
+    private readonly DailyBarChart _daily = new() { Height = 200 };
 
     public OverviewView()
     {
@@ -52,26 +53,26 @@ internal sealed class OverviewView : View
         kpis.Children.Add(Kpi("", "Muted", "Open issues", Fmt.N(db.Totals.OpenIssues), ("including pull requests", 0), null));
         _root.Children.Add(kpis);
 
-        // ---- growth table
-        _root.Children.Add(Ui.Heading("Growth"));
-        _root.Children.Add(Ui.Box(Growth(db), 8, new Thickness(16, 10, 16, 10)));
+        // ---- growth: one slim strip
+        _root.Children.Add(GrowthStrip(db));
 
-        // ---- the big chart
-        _root.Children.Add(Ui.Heading("All repositories over time"));
+        // ---- charts side by side: downloads per day, and the totals over time
+        var snaps = app.Data.Snapshots;
+        double histDays = snaps.Count > 0 ? (Clock.Now() - snaps[0].T) / 86400.0 : 0;
+        int nDays = Math.Max(14, Math.Min(60, (int)Math.Ceiling(histDays) + 1));
+        _daily.SetDays(WidgetStyles.DailyDownloads(nDays), "downloads");
+        if (_daily.Parent is Border od) od.Child = null;
         _chart.SetModel(db.All);
-        if (_chart.Parent is Border old) old.Child = null;
-        _root.Children.Add(Ui.Box(_chart));
-        if (db.All != null)
-        {
-            var cap = Ui.Text(db.All.Caption, 11, "Muted", false, true);
-            cap.Margin = new Thickness(2, 4, 0, 0);
-            _root.Children.Add(cap);
-        }
+        if (_chart.Parent is Border oc) oc.Child = null;
+        var charts = new MasonryPanel { MinColumnWidth = 430, Gap = 14, RowByRow = true, Margin = new Thickness(0, 12, 0, 0) };
+        charts.Children.Add(Panel("Downloads per day", ChartBody(_daily, "Last " + nDays + " days. Dashed line: 7-day average. Hover a bar for the exact number."), null, null));
+        charts.Children.Add(Panel("All repositories over time", ChartBody(_chart, db.All?.Caption ?? ""), null, null));
+        _root.Children.Add(charts);
 
         // ---- detail panels, as many columns as fit
-        var panels = new MasonryPanel { MinColumnWidth = 380, Gap = 14, Margin = new Thickness(0, 18, 0, 0) };
+        var panels = new MasonryPanel { MinColumnWidth = 380, Gap = 14, Margin = new Thickness(0, 14, 0, 0) };
         panels.Children.Add(Panel("Top repositories", TopRepos(db), "Repositories", "repos"));
-        panels.Children.Add(Panel("Downloads per day", Heat(), null, null));
+        panels.Children.Add(Panel("Download calendar", Heat(), null, null));
         panels.Children.Add(Panel("Latest stars", LatestStars(db), "All stars", "stars"));
         panels.Children.Add(Panel("Traffic, last 14 days", TrafficPanel(db), null, null));
         panels.Children.Add(Panel("Latest releases", LatestReleases(), null, null));
@@ -100,16 +101,16 @@ internal sealed class OverviewView : View
         l.FontWeight = FontWeights.SemiBold;
         head.Children.Add(l);
         sp.Children.Add(head);
-        var v = Ui.Text(value, 26, "Text", true);
-        v.Margin = new Thickness(0, 2, 0, 0);
+        var v = Ui.Text(value, 22, "Text", true);
+        v.Margin = new Thickness(0, 1, 0, 0);
         sp.Children.Add(v);
         foreach (var line in new[] { line1, line2 })
         {
             if (line == null) continue;
-            sp.Children.Add(Ui.Text(line.Value.Text, 11.5, line.Value.Sign > 0 ? "Up" : line.Value.Sign < 0 ? "Down" : "Muted", false, true));
+            sp.Children.Add(Ui.Text(line.Value.Text, 11, line.Value.Sign > 0 ? "Up" : line.Value.Sign < 0 ? "Down" : "Muted", false, true));
         }
-        var b = Ui.Box(sp, 10, new Thickness(14, 11, 14, 11));
-        b.MinHeight = 104;
+        var b = Ui.Box(sp, 10, new Thickness(13, 8, 13, 8));
+        b.MinHeight = 84;
         return b;
     }
 
@@ -126,8 +127,8 @@ internal sealed class OverviewView : View
         l.FontWeight = FontWeights.SemiBold;
         head.Children.Add(l);
         sp.Children.Add(head);
-        var v = Ui.Text(next == 0 ? "All reached" : Fmt.N(next), 26, "Text", true);
-        v.Margin = new Thickness(0, 2, 0, 0);
+        var v = Ui.Text(next == 0 ? "All reached" : Fmt.N(next), 22, "Text", true);
+        v.Margin = new Thickness(0, 1, 0, 0);
         sp.Children.Add(v);
         sp.Children.Add(Bar(p, "S2", 6, new Thickness(0, 4, 0, 4)));
         string eta = "";
@@ -136,40 +137,64 @@ internal sealed class OverviewView : View
             double days = (next - total) / pd;
             eta = ", about " + (days < 1.5 ? "a day" : days < 60 ? Math.Round(days) + " days" : Math.Round(days / 30) + " months") + " to go";
         }
-        sp.Children.Add(Ui.Text(next == 0 ? "add more in Settings" : Math.Round(p * 100) + "%" + eta, 11.5, "Muted", false, true));
-        var b = Ui.Box(sp, 10, new Thickness(14, 11, 14, 11));
-        b.MinHeight = 104;
+        sp.Children.Add(Ui.Text(next == 0 ? "add more in Settings" : Math.Round(p * 100) + "%" + eta, 11, "Muted", false, true));
+        var b = Ui.Box(sp, 10, new Thickness(13, 8, 13, 8));
+        b.MinHeight = 84;
         return b;
     }
 
-    private static FrameworkElement Growth(Dashboard db)
+    /// <summary>Growth in one slim line: downloads and stars over the last refresh, 24 hours, 7 and 30 days.</summary>
+    private static FrameworkElement GrowthStrip(Dashboard db)
     {
-        var g = new Grid();
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.2, GridUnitType.Star) });
-        for (int i = 0; i < 4; i++) g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        string[] heads = { "", "Last refresh", "24 hours", "7 days", "30 days" };
-        for (int i = 0; i < heads.Length; i++) Cell(g, Ui.Text(heads[i], 11.5, "Muted"), 0, i, i > 0);
-        var rows = new[]
+        var wrap = new WrapPanel();
+        var head = Ui.Text("GROWTH", 10.5, "Muted");
+        head.FontWeight = FontWeights.SemiBold;
+        head.Margin = new Thickness(0, 0, 18, 0);
+        wrap.Children.Add(head);
+        void Group(string glyph, string brush, string name, long? last, WinDelta[] win)
         {
-            ("Downloads", db.DownloadsDelta, db.DownloadsWin),
-            ("Stars", db.StarsDelta, db.StarsWin),
-        };
-        int r = 1;
-        foreach (var (name, last, win) in rows)
-        {
-            Cell(g, Ui.Text(name, 13, "Text", true), r, 0, false);
-            Cell(g, Val(last, false), r, 1, true);
-            for (int k = 0; k < 3; k++) Cell(g, Val(win[k].Value, win[k].Partial), r, 2 + k, true);
-            r++;
+            var g = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 28, 0) };
+            g.Children.Add(Glyph(glyph, brush, 12));
+            g.Children.Add(Ui.Text("  " + name + "  ", 12.5, "Text", true));
+            void Item(string label, long? v, bool partial)
+            {
+                var t = new TextBlock { FontSize = 12.5, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+                var val = new System.Windows.Documents.Run(v == null ? "-" : Fmt.DeltaText(v.Value) + (partial ? "*" : "")) { FontWeight = FontWeights.SemiBold };
+                val.SetResourceReference(System.Windows.Documents.TextElement.ForegroundProperty, v > 0 ? "Up" : v < 0 ? "Down" : "Text");
+                var lab = new System.Windows.Documents.Run(" " + label);
+                lab.SetResourceReference(System.Windows.Documents.TextElement.ForegroundProperty, "Muted");
+                t.Inlines.Add(val);
+                t.Inlines.Add(lab);
+                if (partial) t.ToolTip = "* Not enough history yet for the whole period: since the first refresh.";
+                g.Children.Add(t);
+            }
+            Item("last refresh", last, false);
+            Item("24h", win[0].Value, win[0].Partial);
+            Item("7d", win[1].Value, win[1].Partial);
+            Item("30d", win[2].Value, win[2].Partial);
+            wrap.Children.Add(g);
         }
-        return g;
+        Group("", "S0", "Downloads", db.DownloadsDelta, db.DownloadsWin);
+        Group("", "S1", "Stars", db.StarsDelta, db.StarsWin);
+        var b = Ui.Box(wrap, 10, new Thickness(14, 8, 14, 8));
+        b.Margin = new Thickness(0, 10, 0, 0);
+        return b;
+    }
 
-        static TextBlock Val(long? v, bool partial)
+    private static FrameworkElement ChartBody(FrameworkElement chart, string caption)
+    {
+        // the chart controls are reused on every update: detach them from the previous page first
+        if (chart.Parent is Panel old) old.Children.Remove(chart);
+        else if (chart.Parent is Border ob) ob.Child = null;
+        var sp = new StackPanel();
+        sp.Children.Add(chart);
+        if (caption.Length > 0)
         {
-            var t = Ui.Text(v == null ? "-" : Fmt.DeltaText(v.Value) + (partial ? "*" : ""), 14, v > 0 ? "Up" : v < 0 ? "Down" : "Text", true);
-            if (partial) t.ToolTip = "* Not enough history yet for the whole period: since the first refresh.";
-            return t;
+            var c = Ui.Text(caption, 10.5, "Muted", false, true);
+            c.Margin = new Thickness(0, 4, 0, 0);
+            sp.Children.Add(c);
         }
+        return sp;
     }
 
     private static void Cell(Grid g, FrameworkElement e, int row, int col, bool right)

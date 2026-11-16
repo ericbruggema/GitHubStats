@@ -40,10 +40,11 @@ Everything on one page:
 
 - **Cards**: downloads, stars, views and clones (14 days, with unique visitors and cloners), downloads per day,
   next milestone with a progress bar, repositories, releases, forks and open issues.
-- **Growth**: downloads and stars since the last refresh, in 24 hours, 7 days and 30 days (`*` = not enough history
-  yet for the whole period).
-- **All repositories over time**: one chart with dates along the bottom. **Hover over a chart** to see the exact
-  numbers for that moment.
+- **Growth**: one line with downloads and stars since the last refresh, in 24 hours, 7 days and 30 days
+  (`*` = not enough history yet for the whole period).
+- **Downloads per day**: a bar per day with a dashed 7-day average. Hover a bar for the exact number.
+- **All repositories over time**: the running totals, with dates along the bottom. **Hover over a chart** to see the
+  exact numbers for that moment.
 - **Panels**: top repositories, downloads per day (heatmap), latest stars, traffic (most viewed, referrers), latest
   releases, most downloaded files, platforms and highlights. They fill as many columns as the window is wide; click a
   row to open it on GitHub.
