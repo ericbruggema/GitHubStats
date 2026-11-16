@@ -62,6 +62,10 @@ history on your own PC and tells you when something happens. No website, no acco
 <td width="50%"><img src="docs/screenshots/detail-views.png" alt="Detail: views"><br><sub><b>Views and clones</b> per day, kept beyond GitHub's 14 days</sub></td>
 </tr>
 <tr>
+<td width="50%"><img src="docs/screenshots/detail-day.png" alt="Detail: one day"><br><sub><b>Click a day</b>: per hour, per repository and release, stars, traffic</sub></td>
+<td width="50%"><img src="docs/screenshots/detail-release.png" alt="Detail: one release"><br><sub><b>Click a release</b>: files, downloads per day, compared to other releases</sub></td>
+</tr>
+<tr>
 <td width="50%"><img src="docs/screenshots/repositories.png" alt="Repositories"><br><sub><b>Repositories</b>: search, sort and a chart per repo</sub></td>
 <td width="50%"><img src="docs/screenshots/insights.png" alt="Insights"><br><sub><b>Insights</b>: top files and downloads per platform</sub></td>
 </tr>

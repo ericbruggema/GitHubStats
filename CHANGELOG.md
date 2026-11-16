@@ -12,7 +12,19 @@
   - **Milestones**: every milestone with the date it was reached, progress and an estimate for the ones still to come
   - **Releases** and **Downloaded files**: complete, sortable lists (file sizes, downloads per day since publishing)
   - **Forks** and **Open issues** per repository
-- Tables are sortable by clicking a column; double-click a row to open it on GitHub.
+- **Click further**:
+  - **a day** (any bar in a per-day chart): that day's downloads compared to normal and its rank, downloads during
+    the day per hour, per repository and per release, who starred, views and clones per repository, releases
+    published that day, and buttons for the previous and next day
+  - **a release**: downloads, publish date and age, per day since release, last 7 days, share of the repository and
+    rank, downloads per day of that release, every file with platform and share, and all releases of the repository
+    to compare
+  - **a repository**: all its numbers (downloads, stars, forks, issues, language, created, last push, license),
+    downloads per day, views and clones per day, referrers, popular pages, stargazers and releases
+  - "Back" returns step by step and says where to
+- Release history is now kept much longer (hourly for 2 days, then one point per day) so per-day release figures
+  stay available.
+- Tables are sortable by clicking a column; click a row for its details, double-click to open it on GitHub.
 
 ## 2.4.1 (2026-11-16)
 

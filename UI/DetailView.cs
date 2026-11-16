@@ -26,6 +26,8 @@ public sealed class DetailRow
     public double SE { get; set; }
     public double SF { get; set; }
     public string Url { get; set; } = "";
+    /// <summary>Detail page to open on click ("release:repo|tag", "repo:name", "day:yyyy-MM-dd"); "" = none.</summary>
+    public string Open { get; set; } = "";
 }
 
 /// <summary>
@@ -48,28 +50,42 @@ internal sealed class DetailView : View
     };
 
     private readonly string _kind;
+    private readonly string _arg;
     private readonly StackPanel _root;
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
-    public DetailView(string kind)
+    public DetailView(string kind, string arg = "")
     {
-        _kind = Titles.ContainsKey(kind) ? kind : "downloads";
+        _kind = Titles.ContainsKey(kind) || kind is "day" or "release" or "repo" ? kind : "downloads";
+        _arg = arg;
         Children.Add(Scroll(out _root));
     }
+
+    /// <summary>The page title (also used by the back link of the next page).</summary>
+    public string PageTitle => _kind switch
+    {
+        "day" => DateTime.TryParseExact(_arg, "yyyy-MM-dd", Inv, DateTimeStyles.None, out var d) ? d.ToString("dddd d MMMM yyyy", Inv) : _arg,
+        "release" => _arg.Replace("|", " "),
+        "repo" => _arg,
+        _ => Titles[_kind],
+    };
 
     public override void Update(Dashboard db)
     {
         _root.Children.Clear();
-        var back = S.Link("‹  Back to overview", () => Host.Window?.Select("overview"));
+        var back = S.Link("\u2039  Back to " + (Host.Window?.BackTitle ?? "overview"), () => Host.Window?.Back());
         back.FontSize = 12.5;
         back.Margin = new Thickness(0, 0, 0, 6);
         _root.Children.Add(back);
-        _root.Children.Add(Title(Titles[_kind]));
+        _root.Children.Add(Title(PageTitle));
         if (!db.HasData) { _root.Children.Add(Ui.Text("No data yet.", 13, "Muted")); return; }
         try
         {
             switch (_kind)
             {
+                case "day": Day(db, DateTime.ParseExact(_arg, "yyyy-MM-dd", Inv)); break;
+                case "release": ReleasePage(_arg); break;
+                case "repo": RepoPage(db, _arg); break;
                 case "stars": Stars(db); break;
                 case "views": Traffic(db, clones: false); break;
                 case "clones": Traffic(db, clones: true); break;
@@ -105,7 +121,8 @@ internal sealed class DetailView : View
 
         var bars = new DailyBarChart { Height = 240 };
         bars.SetDays(days, "downloads");
-        Section("Downloads per day", bars, "Every day since the first refresh (up to a year). Dashed line: 7-day average. Hover a bar for the exact number.");
+        bars.DayClicked += d => Host.Window?.ShowDetail("day", d.ToString("yyyy-MM-dd", Inv));
+        Section("Downloads per day", bars, "Every day since the first refresh (up to a year). Dashed line: 7-day average. Click a bar for everything that happened that day.");
 
         var total = new ChartControl { Height = 240 };
         total.SetModel(db.All);
@@ -116,7 +133,7 @@ internal sealed class DetailView : View
             db.Repos.OrderByDescending(r => r.Downloads).Select(r => new DetailRow
             {
                 A = r.Name, B = Fmt.N(r.Downloads), SB = r.Downloads, C = r.DeltaLast, SC = r.DeltaLastSort, D = r.Delta7, SD = r.Delta7Sort,
-                E = r.PerDay, SE = r.PerDaySort, F = r.Releases.ToString(), SF = r.Releases, Url = r.Url,
+                E = r.PerDay, SE = r.PerDaySort, F = r.Releases.ToString(), SF = r.Releases, Url = r.Url, Open = "repo:" + r.Name,
             })));
 
         var two = new MasonryPanel { MinColumnWidth = 420, Gap = 14, Margin = new Thickness(0, 14, 0, 0) };
@@ -165,6 +182,7 @@ internal sealed class DetailView : View
             }
             var bars = new DailyBarChart { Height = 220 };
             bars.SetDays(days, "stars");
+            bars.DayClicked += d => Host.Window?.ShowDetail("day", d.ToString("yyyy-MM-dd", Inv));
             Section("Stars per day", bars, "Exact dates as reported by GitHub. Dashed line: 7-day average.");
         }
 
@@ -173,14 +191,14 @@ internal sealed class DetailView : View
             db.Repos.OrderByDescending(r => r.Stars).Select(r =>
             {
                 var mine = recs.Where(x => x.Repo == r.Name).ToList();
-                return new DetailRow { A = r.Name, B = Fmt.N(r.Stars), SB = r.Stars, C = Fmt.N(mine.Count), SC = mine.Count, D = mine.Count > 0 ? Ago(mine[0].T) : "-", SD = mine.Count > 0 ? mine[0].T : 0, Url = r.Url + "/stargazers" };
+                return new DetailRow { A = r.Name, B = Fmt.N(r.Stars), SB = r.Stars, C = Fmt.N(mine.Count), SC = mine.Count, D = mine.Count > 0 ? Ago(mine[0].T) : "-", SD = mine.Count > 0 ? mine[0].T : 0, Url = r.Url + "/stargazers", Open = "repo:" + r.Name };
             })));
 
         if (recs.Count > 0)
         {
             Heading("All stargazers");
             _root.Children.Add(Table(new[] { ("When", "A", "SA", 150, false), ("", "B", "SA", 90, false), ("Repository", "C", "", 200, false), ("Who", "D", "", 0.0, false) },
-                recs.Select(x => new DetailRow { A = Local(x.T).ToString("yyyy-MM-dd HH:mm", Inv), SA = x.T, B = Ago(x.T), C = x.Repo, D = x.U, Url = "https://github.com/" + x.U })));
+                recs.Select(x => new DetailRow { A = Local(x.T).ToString("yyyy-MM-dd HH:mm", Inv), SA = x.T, B = Ago(x.T), C = x.Repo, D = x.U, Url = "https://github.com/" + x.U, Open = "day:" + Local(x.T).ToString("yyyy-MM-dd", Inv) })));
         }
     }
 
@@ -230,6 +248,7 @@ internal sealed class DetailView : View
             }
             var bars = new DailyBarChart { Height = 240 };
             bars.SetDays(days, what, uniques.ToArray(), clones ? "unique cloners" : "unique visitors");
+            bars.DayClicked += d => Host.Window?.ShowDetail("day", d.ToString("yyyy-MM-dd", Inv));
             Section((clones ? "Clones" : "Views") + " per day", bars,
                 "All repositories together, per day (UTC). Dashed line: " + (clones ? "unique cloners" : "unique visitors") + ". GitHub only keeps 14 days; this program keeps every day it has seen.");
         }
@@ -240,7 +259,7 @@ internal sealed class DetailView : View
             {
                 long n = clones ? x.Value.Clones14 : x.Value.Views14, u = clones ? x.Value.CloneUniques14 : x.Value.Uniques14, other = clones ? x.Value.Views14 : x.Value.Clones14;
                 long all = x.Value.Days.Values.Sum(d => clones ? d.C : d.V);
-                return new DetailRow { A = x.Key, B = Fmt.N(n), SB = n, C = Fmt.N(u), SC = u, D = Fmt.N(all), SD = all, E = Fmt.N(other), SE = other, Url = shown.TryGetValue(x.Key, out var r) ? r.Url + "/graphs/traffic" : "" };
+                return new DetailRow { A = x.Key, B = Fmt.N(n), SB = n, C = Fmt.N(u), SC = u, D = Fmt.N(all), SD = all, E = Fmt.N(other), SE = other, Url = shown.TryGetValue(x.Key, out var r) ? r.Url + "/graphs/traffic" : "", Open = "repo:" + x.Key };
             })));
 
         if (!clones)
@@ -323,7 +342,7 @@ internal sealed class DetailView : View
                     A = x.Repo, B = x.Rel.Tag + (x.Rel.Name.Length > 0 && x.Rel.Name != x.Rel.Tag ? "  " + x.Rel.Name : "") + (x.Rel.Prerelease ? "  (pre-release)" : ""),
                     C = w == DateTime.MinValue ? "" : w.ToString("yyyy-MM-dd", Inv), SC = w.Ticks,
                     D = Fmt.N(x.Rel.Downloads), SD = x.Rel.Downloads, E = perDay.ToString("0.0", CultureInfo.CurrentCulture), SE = perDay,
-                    F = x.Rel.Assets.Count.ToString(), SF = x.Rel.Assets.Count, Url = x.Rel.Url,
+                    F = x.Rel.Assets.Count.ToString(), SF = x.Rel.Assets.Count, Url = x.Rel.Url, Open = "release:" + x.Repo + "|" + x.Rel.Tag,
                 };
             })));
     }
@@ -339,7 +358,7 @@ internal sealed class DetailView : View
         _root.Children.Add(Table(new[] { ("File", "A", "", 0.0, false), ("Repository", "B", "", 170, false), ("Release", "C", "", 110, false), ("Size", "D", "SD", 90, true), ("Downloads", "E", "SE", 90, true) },
             all.OrderByDescending(x => x.A.Downloads).Select(x => new DetailRow
             {
-                A = x.A.Name, B = x.Repo, C = x.Rel.Tag, D = Mb(x.A.Size), SD = x.A.Size, E = Fmt.N(x.A.Downloads), SE = x.A.Downloads, Url = x.Rel.Url,
+                A = x.A.Name, B = x.Repo, C = x.Rel.Tag, D = Mb(x.A.Size), SD = x.A.Size, E = Fmt.N(x.A.Downloads), SE = x.A.Downloads, Url = x.Rel.Url, Open = "release:" + x.Repo + "|" + x.Rel.Tag,
             })));
     }
 
@@ -352,10 +371,313 @@ internal sealed class DetailView : View
         Facts((label, Fmt.N(total), "S0"), ("Repositories with any", Fmt.N(repos.Count(r => value(r) > 0)), "Text"));
         Heading("Per repository");
         _root.Children.Add(Table(new[] { ("Repository", "A", "", 0.0, false), (label, "B", "SB", 110, true), ("Stars", "C", "SC", 80, true), ("Language", "D", "", 110, false) },
-            repos.Select(r => new DetailRow { A = r.Name, B = Fmt.N(value(r)), SB = value(r), C = Fmt.N(r.Stars), SC = r.Stars, D = r.Language, Url = r.Url + "/" + (urlSuffix == "forks" ? "forks" : "issues") })));
-        var hint = Ui.Text("Double-click a row to open the " + (urlSuffix == "forks" ? "forks" : "issues") + " on GitHub.", 11.5, "Muted");
+            repos.Select(r => new DetailRow { A = r.Name, B = Fmt.N(value(r)), SB = value(r), C = Fmt.N(r.Stars), SC = r.Stars, D = r.Language, Url = r.Url + "/" + (urlSuffix == "forks" ? "forks" : "issues"), Open = "repo:" + r.Name })));
+        var hint = Ui.Text("Click a row for the repository; double-click opens the " + (urlSuffix == "forks" ? "forks" : "issues") + " on GitHub.", 11.5, "Muted");
         hint.Margin = new Thickness(0, 6, 0, 0);
         _root.Children.Add(hint);
+    }
+
+    // ================================================================== one day
+
+    private void Day(Dashboard db, DateTime day)
+    {
+        var app = Host.App;
+        var snaps = app.Data.Snapshots;
+        var allDays = Daily(snaps.Select(s => (s.T, s.Downloads)), 400);
+        var me = allDays.FirstOrDefault(d => d.Day == day);
+        var measured = allDays.Where(d => d.Value.HasValue).ToList();
+        int rank = me.Value.HasValue ? measured.Count(d => d.Value > me.Value) + 1 : 0;
+        var before = allDays.Where(d => d.Day < day && d.Day >= day.AddDays(-7) && d.Value.HasValue).Select(d => (double)d.Value!.Value).ToList();
+        double? avg = before.Count > 0 ? before.Average() : null;
+
+        // previous / next day
+        var nav = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+        nav.Children.Add(S.SmallBtn("‹  " + day.AddDays(-1).ToString("ddd d MMM", Inv), () => Host.Window?.ShowDetail("day", day.AddDays(-1).ToString("yyyy-MM-dd", Inv)), new Thickness(0, 0, 8, 0)));
+        if (day < Local(Clock.Now()).Date)
+            nav.Children.Add(S.SmallBtn(day.AddDays(1).ToString("ddd d MMM", Inv) + "  ›", () => Host.Window?.ShowDetail("day", day.AddDays(1).ToString("yyyy-MM-dd", Inv)), new Thickness(0)));
+        _root.Children.Add(nav);
+
+        string vsAvg = me.Value is long v && avg is double a && a > 0 ? (v >= a ? "+" : "") + Math.Round((v - a) / a * 100) + "% vs the 7 days before" : "";
+        Facts(("Downloads", me.Value is long dv ? Fmt.N(dv) : "not measured", "S0"),
+              ("Compared to normal", avg is double av ? "average " + av.ToString("0.#", CultureInfo.CurrentCulture) : "-", me.Value > avg ? "Up" : me.Value < avg ? "Down" : "Text"),
+              ("Rank", rank > 0 ? "#" + rank + " of " + measured.Count + " days" : "-", "Text"),
+              ("Stars", Fmt.N(StarsOn(day).Count), "S1"),
+              ("Views", TrafficOn(day).Sum(x => x.V).ToString("N0", CultureInfo.CurrentCulture), "S2"),
+              ("Clones", TrafficOn(day).Sum(x => x.C).ToString("N0", CultureInfo.CurrentCulture), "S2"));
+        if (vsAvg.Length > 0) { var t = Ui.Text(vsAvg, 12, me.Value > avg ? "Up" : "Down"); t.Margin = new Thickness(2, 0, 0, 0); _root.Children.Add(t); }
+
+        // during the day: downloads per refresh, shown at the hour the refresh finished
+        var start = new DateTimeOffset(day, Clock.Tz.GetUtcOffset(day)).ToUnixTimeSeconds();
+        var end = start + 86400;
+        var inDay = snaps.Where(s => s.T >= start && s.T < end).OrderBy(s => s.T).ToList();
+        var prev = snaps.LastOrDefault(s => s.T < start);
+        var hours = new List<(DateTime, long?)>();
+        var perHour = new Dictionary<int, long>();
+        long? last = prev?.Downloads;
+        foreach (var s in inDay)
+        {
+            if (last != null) { int h = Local(s.T).Hour; perHour[h] = perHour.GetValueOrDefault(h) + Math.Max(0, s.Downloads - last.Value); }
+            last = s.Downloads;
+        }
+        for (int h = 0; h < 24; h++) hours.Add((day.AddHours(h), perHour.TryGetValue(h, out var hv) ? hv : (long?)null));
+        if (perHour.Count > 0)
+        {
+            var hb = new DailyBarChart { Height = 180, Hourly = true };
+            hb.SetDays(hours, "downloads");
+            Section("During the day", hb, "Downloads counted per refresh, shown at the hour the refresh finished (" + inDay.Count + " refreshes that day). More frequent refreshing gives a finer picture.");
+        }
+
+        // per repository and per release
+        var repoRows = new List<DetailRow>();
+        foreach (var name in app.Data.Repos.Keys)
+        {
+            var rd = Daily(snaps.Where(s => s.Repos.ContainsKey(name)).Select(s => (s.T, Calc.SnapDl(s, name))), 400).FirstOrDefault(d => d.Day == day);
+            if (rd.Value is long rv && rv != 0) repoRows.Add(new DetailRow { A = name, B = Fmt.N(rv), SB = rv, Open = "repo:" + name });
+        }
+        var relRows = new List<DetailRow>();
+        foreach (var r in app.Data.Repos.Values)
+            foreach (var rel in r.Releases)
+            {
+                var rd = Daily(rel.History.Select(x => (x[0], x[1])), 400).FirstOrDefault(d => d.Day == day);
+                if (rd.Value is long rv && rv != 0) relRows.Add(new DetailRow { A = r.Name, B = rel.Tag, C = Fmt.N(rv), SC = rv, Open = "release:" + r.Name + "|" + rel.Tag });
+            }
+        var two = new MasonryPanel { MinColumnWidth = 420, Gap = 14, Margin = new Thickness(0, 14, 0, 0) };
+        two.Children.Add(Box("Downloads per repository", repoRows.Count == 0 ? Ui.Text("No downloads measured this day.", 12, "Muted") :
+            Table(new[] { ("Repository", "A", "", 0.0, false), ("Downloads", "B", "SB", 100, true) }, repoRows.OrderByDescending(x => x.SB))));
+        two.Children.Add(Box("Downloads per release", relRows.Count == 0 ? Ui.Text("No release history for this day. Release history is kept from version 2.5 on: hourly for 2 days, then per day.", 12, "Muted", false, true) :
+            Table(new[] { ("Repository", "A", "", 0.0, false), ("Release", "B", "", 110, false), ("Downloads", "C", "SC", 100, true) }, relRows.OrderByDescending(x => x.SC))));
+
+        var stars = StarsOn(day);
+        two.Children.Add(Box("Stars this day", stars.Count == 0 ? Ui.Text(app.Stars.Count == 0 ? "Star dates need a token with repository access." : "No new stars.", 12, "Muted") :
+            Table(new[] { ("Time", "A", "SA", 70, false), ("Who", "B", "", 0.0, false), ("Repository", "C", "", 170, false) },
+                stars.Select(x => new DetailRow { A = Local(x.T).ToString("HH:mm", Inv), SA = x.T, B = x.U, C = x.Repo, Url = "https://github.com/" + x.U, Open = "repo:" + x.Repo }))));
+        var tr = TrafficOn(day);
+        two.Children.Add(Box("Views and clones (UTC day)", tr.Count == 0 ? Ui.Text(app.Traffic.Count == 0 ? "Traffic needs a token with repository access." : "No traffic stored for this day.", 12, "Muted") :
+            Table(new[] { ("Repository", "A", "", 0.0, false), ("Views", "B", "SB", 70, true), ("Unique", "C", "SC", 70, true), ("Clones", "D", "SD", 70, true), ("Unique", "E", "SE", 70, true) },
+                tr.OrderByDescending(x => x.V).Select(x => new DetailRow { A = x.Repo, B = Fmt.N(x.V), SB = x.V, C = Fmt.N(x.Uv), SC = x.Uv, D = Fmt.N(x.C), SD = x.C, E = Fmt.N(x.Uc), SE = x.Uc, Open = "repo:" + x.Repo }))));
+        var published = app.Data.Repos.Values.SelectMany(r => r.Releases.Select(rel => (r.Name, rel)))
+            .Where(x => DateTime.TryParse(x.rel.PublishedAt, Inv, DateTimeStyles.AdjustToUniversal, out var w) && TimeZoneInfo.ConvertTimeFromUtc(w, Clock.Tz).Date == day).ToList();
+        if (published.Count > 0)
+            two.Children.Add(Box("Released this day", Table(new[] { ("Repository", "A", "", 0.0, false), ("Release", "B", "", 120, false), ("Downloads so far", "C", "SC", 120, true) },
+                published.Select(x => new DetailRow { A = x.Name, B = x.rel.Tag, C = Fmt.N(x.rel.Downloads), SC = x.rel.Downloads, Open = "release:" + x.Name + "|" + x.rel.Tag }))));
+        _root.Children.Add(two);
+        Hint("Click a row for more details.");
+    }
+
+    private List<(string Repo, string U, long T)> StarsOn(DateTime day)
+    {
+        var shown = Host.App.Data.Repos;
+        return Host.App.Stars.Where(kv => shown.ContainsKey(kv.Key))
+            .SelectMany(kv => kv.Value.Where(s => s.T > 0 && Local(s.T).Date == day).Select(s => (kv.Key, s.U, s.T)))
+            .OrderBy(x => x.T).ToList();
+    }
+
+    private List<(string Repo, long V, long Uv, long C, long Uc)> TrafficOn(DateTime day)
+    {
+        string key = day.ToString("yyyy-MM-dd", Inv);
+        var shown = Host.App.Data.Repos;
+        return Host.App.Traffic.Where(kv => shown.ContainsKey(kv.Key) && kv.Value.Days.ContainsKey(key))
+            .Select(kv => (kv.Key, kv.Value.Days[key].V, kv.Value.Days[key].Uv, kv.Value.Days[key].C, kv.Value.Days[key].Uc))
+            .Where(x => x.V + x.C > 0).ToList();
+    }
+
+    // ================================================================== one release
+
+    private void ReleasePage(string arg)
+    {
+        var parts = arg.Split('|', 2);
+        if (parts.Length < 2 || !Host.App.Data.Repos.TryGetValue(parts[0], out var repo)) { _root.Children.Add(Ui.Text("This release is no longer available.", 13, "Muted")); return; }
+        var rel = repo.Releases.FirstOrDefault(r => r.Tag == parts[1]);
+        if (rel == null) { _root.Children.Add(Ui.Text("This release is no longer available.", 13, "Muted")); return; }
+
+        var sub = Ui.Text(repo.Name + (rel.Name.Length > 0 && rel.Name != rel.Tag ? "  ·  " + rel.Name : "") + (rel.Prerelease ? "  ·  pre-release" : ""), 13, "Muted", false, true);
+        _root.Children.Add(sub);
+        var btns = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+        btns.Children.Add(S.SmallBtn("Open on GitHub", () => Ui.OpenUrl(rel.Url), new Thickness(0, 0, 8, 0)));
+        btns.Children.Add(S.SmallBtn("Repository " + repo.Name + "  ›", () => Host.Window?.ShowDetail("repo", repo.Name), new Thickness(0)));
+        _root.Children.Add(btns);
+
+        DateTime pub = DateTime.TryParse(rel.PublishedAt, Inv, DateTimeStyles.AdjustToUniversal, out var w) ? w : DateTime.MinValue;
+        double age = pub == DateTime.MinValue ? 0 : Math.Max(1, (DateTime.UtcNow - pub).TotalDays);
+        var ordered = repo.Releases.OrderByDescending(r => r.Downloads).ToList();
+        int rank = ordered.IndexOf(rel) + 1;
+        double share = repo.Downloads > 0 ? (double)rel.Downloads / repo.Downloads : 0;
+        var daily = Daily(rel.History.Select(x => (x[0], x[1])), 400);
+        long d7 = daily.Skip(Math.Max(0, daily.Count - 7)).Sum(d => d.Value ?? 0);
+        Facts(("Downloads", Fmt.N(rel.Downloads), "S0"),
+              ("Published", pub == DateTime.MinValue ? "-" : TimeZoneInfo.ConvertTimeFromUtc(pub, Clock.Tz).ToString("d MMM yyyy", Inv), "Text"),
+              ("Age", age > 0 ? Math.Round(age) + " days" : "-", "Text"),
+              ("Per day since release", age > 0 ? (rel.Downloads / age).ToString("0.0", CultureInfo.CurrentCulture) : "-", "Text"),
+              ("Last 7 days", Fmt.DeltaText(d7), d7 > 0 ? "Up" : "Text"),
+              ("Share of " + repo.Name, Math.Round(share * 100) + "%", "Text"),
+              ("Rank in repository", "#" + rank + " of " + repo.Releases.Count, "Text"));
+
+        if (daily.Any(d => d.Value.HasValue))
+        {
+            var bars = new DailyBarChart { Height = 200 };
+            bars.SetDays(FromFirst(daily, 14), "downloads");
+            bars.DayClicked += d => Host.Window?.ShowDetail("day", d.ToString("yyyy-MM-dd", Inv));
+            Section("Downloads per day of this release", bars, "From the refreshes since this release was first seen. Click a bar for that day.");
+        }
+
+        Heading("Files");
+        long relTotal = Math.Max(1, rel.Assets.Sum(a => a.Downloads));
+        _root.Children.Add(Table(new[] { ("File", "A", "", 0.0, false), ("Platform", "B", "", 110, false), ("Size", "C", "SC", 90, true), ("Downloads", "D", "SD", 90, true), ("Share", "E", "SE", 70, true) },
+            rel.Assets.OrderByDescending(a => a.Downloads).Select(a => new DetailRow
+            {
+                A = a.Name, B = Calc.Platform(a.Name), C = Mb(a.Size), SC = a.Size, D = Fmt.N(a.Downloads), SD = a.Downloads,
+                E = Math.Round(a.Downloads * 100.0 / relTotal) + "%", SE = a.Downloads, Url = rel.Url,
+            })));
+
+        Heading("All releases of " + repo.Name);
+        _root.Children.Add(ReleaseTable(repo, rel.Tag));
+    }
+
+    private static FrameworkElement ReleaseTable(Repo repo, string? highlight)
+    {
+        DateTime When(Release r) => DateTime.TryParse(r.PublishedAt, Inv, DateTimeStyles.AdjustToUniversal, out var d) ? d : DateTime.MinValue;
+        return Table(new[] { ("Release", "A", "", 0.0, false), ("Published", "B", "SB", 110, false), ("Downloads", "C", "SC", 90, true), ("Per day", "D", "SD", 80, true), ("Files", "E", "SE", 60, true) },
+            repo.Releases.OrderByDescending(When).Select(r =>
+            {
+                var w = When(r);
+                double perDay = w == DateTime.MinValue ? 0 : r.Downloads / Math.Max(1, (DateTime.UtcNow - w).TotalDays);
+                return new DetailRow
+                {
+                    A = (r.Tag == highlight ? "▶ " : "") + r.Tag + (r.Name.Length > 0 && r.Name != r.Tag ? "  " + r.Name : ""),
+                    B = w == DateTime.MinValue ? "" : w.ToString("yyyy-MM-dd", Inv), SB = w.Ticks, C = Fmt.N(r.Downloads), SC = r.Downloads,
+                    D = perDay.ToString("0.0", CultureInfo.CurrentCulture), SD = perDay, E = r.Assets.Count.ToString(), SE = r.Assets.Count,
+                    Url = r.Url, Open = "release:" + repo.Name + "|" + r.Tag,
+                };
+            }));
+    }
+
+    // ================================================================== one repository
+
+    private void RepoPage(Dashboard db, string name)
+    {
+        var app = Host.App;
+        if (!app.Data.Repos.TryGetValue(name, out var repo)) { _root.Children.Add(Ui.Text("This repository is not shown (hidden, or no longer public).", 13, "Muted")); return; }
+        if (repo.Description.Length > 0) _root.Children.Add(Ui.Text(repo.Description, 13, "Muted", false, true));
+        var btns = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+        btns.Children.Add(S.SmallBtn("Open on GitHub", () => Ui.OpenUrl(repo.Url), new Thickness(0, 0, 8, 0)));
+        btns.Children.Add(S.SmallBtn("Traffic on GitHub", () => Ui.OpenUrl(repo.Url + "/graphs/traffic"), new Thickness(0)));
+        _root.Children.Add(btns);
+
+        var row = db.Repos.FirstOrDefault(r => r.Name == name);
+        string Dt(string iso) => DateTime.TryParse(iso, Inv, DateTimeStyles.AdjustToUniversal, out var d) ? d.ToString("d MMM yyyy", Inv) : "-";
+        Facts(("Downloads", Fmt.N(repo.Downloads), "S0"),
+              ("Last 7 days", row?.Delta7 is { Length: > 0 } d7 ? d7 : "-", (row?.Delta7Sort ?? 0) > 0 ? "Up" : "Text"),
+              ("Per day", row?.PerDay is { Length: > 0 } pd ? pd : "-", "Text"),
+              ("Stars", Fmt.N(repo.Stars), "S1"),
+              ("Forks", Fmt.N(repo.Forks), "Text"),
+              ("Open issues", Fmt.N(repo.OpenIssues), "Text"),
+              ("Releases", Fmt.N(repo.Releases.Count), "Text"),
+              ("Language", repo.Language.Length > 0 ? repo.Language : "-", "Text"),
+              ("Created", Dt(repo.CreatedAt), "Text"),
+              ("Last push", Dt(repo.PushedAt), "Text"),
+              ("License", repo.License.Length > 0 ? repo.License : "-", "Text"));
+
+        var snaps = app.Data.Snapshots.Where(s => s.Repos.ContainsKey(name)).ToList();
+        var daily = Daily(snaps.Select(s => (s.T, Calc.SnapDl(s, name))), Math.Max(14, Math.Min(365, HistoryDays(365))));
+        if (daily.Any(d => d.Value.HasValue))
+        {
+            var bars = new DailyBarChart { Height = 200 };
+            bars.SetDays(FromFirst(daily, 14), "downloads");
+            bars.DayClicked += d => Host.Window?.ShowDetail("day", d.ToString("yyyy-MM-dd", Inv));
+            Section("Downloads per day", bars, "Click a bar for everything that happened that day.");
+        }
+
+        if (app.Traffic.TryGetValue(name, out var tr) && tr.Days.Count > 0)
+        {
+            var today = DateTime.UtcNow.Date;
+            var parsed = tr.Days.Select(kv => (Ok: DateTime.TryParseExact(kv.Key, "yyyy-MM-dd", Inv, DateTimeStyles.None, out var d), Day: d, kv.Value)).Where(x => x.Ok).ToDictionary(x => x.Day, x => x.Value);
+            var first = parsed.Keys.Min();
+            var vDays = new List<(DateTime, long?)>();
+            var vUniq = new List<double?>();
+            var cDays = new List<(DateTime, long?)>();
+            var cUniq = new List<double?>();
+            for (var d = first; d <= today; d = d.AddDays(1))
+            {
+                bool has = parsed.TryGetValue(d, out var t);
+                vDays.Add((d, has ? t!.V : null)); vUniq.Add(has ? t!.Uv : null);
+                cDays.Add((d, has ? t!.C : null)); cUniq.Add(has ? t!.Uc : null);
+            }
+            var two = new MasonryPanel { MinColumnWidth = 420, Gap = 14, Margin = new Thickness(0, 12, 0, 0), RowByRow = true };
+            var vb = new DailyBarChart { Height = 180 };
+            vb.SetDays(vDays, "views", vUniq.ToArray(), "unique visitors");
+            vb.DayClicked += d => Host.Window?.ShowDetail("day", d.ToString("yyyy-MM-dd", Inv));
+            two.Children.Add(Box("Views per day", vb));
+            var cb = new DailyBarChart { Height = 180 };
+            cb.SetDays(cDays, "clones", cUniq.ToArray(), "unique cloners");
+            cb.DayClicked += d => Host.Window?.ShowDetail("day", d.ToString("yyyy-MM-dd", Inv));
+            two.Children.Add(Box("Clones per day", cb));
+            _root.Children.Add(two);
+            var refs = tr.Referrers.OrderByDescending(r => r.Count).Take(10).Select(r => new NameValue { Name = r.Referrer, Value = r.Count, Detail = r.Uniques + " unique" }).ToList();
+            var paths = tr.Paths.OrderByDescending(p => p.Count).Take(10).Select(p => new NameValue { Name = p.Path, Value = p.Count, Detail = p.Uniques + " unique" }).ToList();
+            Scale(refs);
+            Scale(paths);
+            var two2 = new MasonryPanel { MinColumnWidth = 420, Gap = 14, Margin = new Thickness(0, 14, 0, 0) };
+            two2.Children.Add(Box("Where visitors come from (14 days)", refs.Count == 0 ? Ui.Text("No referrers reported.", 12, "Muted") : Ui.BarList(refs, x => Fmt.N(x.Value) + "  (" + x.Detail + ")", 1)));
+            two2.Children.Add(Box("Popular pages (14 days)", paths.Count == 0 ? Ui.Text("No pages reported.", 12, "Muted") : Ui.BarList(paths, x => Fmt.N(x.Value), 0)));
+            _root.Children.Add(two2);
+        }
+
+        if (app.Stars.TryGetValue(name, out var stars) && stars.Count > 0)
+        {
+            Heading("Stargazers");
+            _root.Children.Add(Table(new[] { ("When", "A", "SA", 150, false), ("", "B", "SA", 90, false), ("Who", "C", "", 0.0, false) },
+                stars.Where(s => s.T > 0).OrderByDescending(s => s.T).Select(s => new DetailRow
+                {
+                    A = Local(s.T).ToString("yyyy-MM-dd HH:mm", Inv), SA = s.T, B = Ago(s.T), C = s.U, Url = "https://github.com/" + s.U,
+                    Open = "day:" + Local(s.T).ToString("yyyy-MM-dd", Inv),
+                })));
+        }
+
+        if (repo.Releases.Count > 0)
+        {
+            Heading("Releases");
+            _root.Children.Add(ReleaseTable(repo, null));
+        }
+        Hint("Click a row for more details; double-click opens it on GitHub.");
+    }
+
+    // ================================================================== per-day helper
+
+    /// <summary>
+    /// Change per calendar day (local time) from cumulative points (unix time, total): the last value of each day minus
+    /// the last value of the previous measured day. Oldest first, ending today; null = no measurement that day.
+    /// </summary>
+    private static List<(DateTime Day, long? Value)> Daily(IEnumerable<(long T, long V)> points, int count)
+    {
+        var lastOfDay = new SortedDictionary<DateTime, long>();
+        foreach (var (t, v) in points.OrderBy(p => p.T)) lastOfDay[Local(t).Date] = v;
+        var keys = lastOfDay.Keys.ToList();
+        var today = Local(Clock.Now()).Date;
+        var list = new List<(DateTime, long?)>();
+        for (int i = count - 1; i >= 0; i--)
+        {
+            var day = today.AddDays(-i);
+            long? val = null;
+            int k = keys.BinarySearch(day);
+            if (k > 0) val = Math.Max(0, lastOfDay[day] - lastOfDay[keys[k - 1]]);
+            list.Add((day, val));
+        }
+        return list;
+    }
+
+    /// <summary>Drops the empty days before the first measurement (keeping at least <paramref name="min"/> days).</summary>
+    private static List<(DateTime Day, long? Value)> FromFirst(List<(DateTime Day, long? Value)> days, int min)
+    {
+        int first = days.FindIndex(d => d.Value.HasValue);
+        int start = first < 0 ? 0 : Math.Max(0, Math.Min(first - 1, days.Count - min));
+        return days.Skip(start).ToList();
+    }
+
+    private void Hint(string text)
+    {
+        var h = Ui.Text(text, 11.5, "Muted");
+        h.Margin = new Thickness(0, 8, 0, 0);
+        _root.Children.Add(h);
     }
 
     // ================================================================== building blocks
@@ -427,6 +749,23 @@ internal sealed class DetailView : View
             g.Columns.Add(Ui.Col(header, path, width, right, null, sort.Length > 0 ? sort : null));
         g.ItemsSource = rows.ToList();
         g.MouseDoubleClick += (s, e) => { if (g.SelectedItem is DetailRow r && r.Url.Length > 0) Ui.OpenUrl(r.Url); };
+        g.PreviewMouseLeftButtonUp += (s, e) =>
+        {
+            if (e.ClickCount > 1) return;
+            var dep = e.OriginalSource as DependencyObject;
+            while (dep != null && dep is not DataGridRow) dep = VisualTreeHelper.GetParent(dep);
+            if (dep is DataGridRow { Item: DetailRow r } && r.Open.Length > 0)
+            {
+                int i = r.Open.IndexOf(':');
+                Host.Window?.ShowDetail(r.Open[..i], r.Open[(i + 1)..]);
+            }
+        };
+        g.MouseMove += (s, e) =>
+        {
+            var dep = e.OriginalSource as DependencyObject;
+            while (dep != null && dep is not DataGridRow) dep = VisualTreeHelper.GetParent(dep);
+            g.Cursor = dep is DataGridRow { Item: DetailRow { Open.Length: > 0 } } ? Cursors.Hand : null;
+        };
         // let the mouse wheel scroll the page instead of the table
         g.PreviewMouseWheel += (s, e) =>
         {

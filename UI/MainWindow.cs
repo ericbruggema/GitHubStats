@@ -141,19 +141,35 @@ internal sealed class MainWindow : Window
     }
 
     private DetailView? _detail;
+    private readonly List<DetailView> _trail = new();
 
-    /// <summary>Opens the detail statistics for one Overview block (the Overview stays selected in the menu).</summary>
-    public void ShowDetail(string kind)
+    /// <summary>Opens detail statistics (a block of the Overview, a day, a release, a repository). Back returns step by step.</summary>
+    public void ShowDetail(string kind, string arg = "")
     {
-        if (kind == "repos") { Select("repos"); return; }
-        _detail = new DetailView(kind);
+        if (kind == "repos" && arg.Length == 0) { Select("repos"); return; }
+        _detail = new DetailView(kind, arg);
+        _trail.Add(_detail);
         _host.Child = _detail;
         if (_db != null) _detail.Update(_db);
     }
 
+    /// <summary>One step back: the previous detail page, or the Overview.</summary>
+    public void Back()
+    {
+        if (_trail.Count > 0) _trail.RemoveAt(_trail.Count - 1);
+        if (_trail.Count == 0) { Select("overview"); return; }
+        _detail = _trail[^1];
+        _host.Child = _detail;
+        if (_db != null) _detail.Update(_db);
+    }
+
+    /// <summary>Title of the page Back returns to.</summary>
+    public string BackTitle => _trail.Count >= 2 ? _trail[^2].PageTitle : "overview";
+
     public void Select(string key)
     {
         _detail = null;
+        _trail.Clear();
         _current = key;
         foreach (var kv in _nav)
         {

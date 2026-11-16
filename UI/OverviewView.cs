@@ -16,6 +16,7 @@ internal sealed class OverviewView : View
     private readonly StackPanel _root;
     private readonly ChartControl _chart = new() { Height = 200 };
     private readonly DailyBarChart _daily = new() { Height = 200 };
+    private bool _dailyWired;
 
     public OverviewView()
     {
@@ -61,11 +62,12 @@ internal sealed class OverviewView : View
         double histDays = snaps.Count > 0 ? (Clock.Now() - snaps[0].T) / 86400.0 : 0;
         int nDays = Math.Max(14, Math.Min(60, (int)Math.Ceiling(histDays) + 1));
         _daily.SetDays(WidgetStyles.DailyDownloads(nDays), "downloads");
+        if (!_dailyWired) { _daily.DayClicked += d => Host.Window?.ShowDetail("day", d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)); _dailyWired = true; }
         if (_daily.Parent is Border od) od.Child = null;
         _chart.SetModel(db.All);
         if (_chart.Parent is Border oc) oc.Child = null;
         var charts = new MasonryPanel { MinColumnWidth = 430, Gap = 14, RowByRow = true, Margin = new Thickness(0, 12, 0, 0) };
-        charts.Children.Add(Panel("Downloads per day", ChartBody(_daily, "Last " + nDays + " days. Dashed line: 7-day average. Hover a bar for the exact number."), "downloads"));
+        charts.Children.Add(Panel("Downloads per day", ChartBody(_daily, "Last " + nDays + " days. Dashed line: 7-day average. Click a bar for that day."), "downloads"));
         charts.Children.Add(Panel("All repositories over time", ChartBody(_chart, db.All?.Caption ?? ""), "downloads"));
         _root.Children.Add(charts);
 
@@ -274,10 +276,11 @@ internal sealed class OverviewView : View
             g.Children.Add(st);
             g.Cursor = Cursors.Hand;
             g.Background = Brushes.Transparent;
-            g.MouseLeftButtonUp += (s, e) => { e.Handled = true; Ui.OpenUrl(r.Url); };
+            string repoName = r.Name;
+            g.MouseLeftButtonUp += (s, e) => { e.Handled = true; Host.Window?.ShowDetail("repo", repoName); };
             sp.Children.Add(g);
         }
-        var hint = Ui.Text("downloads  ·  last 7 days  ·  stars. Click a repository to open it on GitHub, anywhere else for details.", 10.5, "Muted");
+        var hint = Ui.Text("downloads  ·  last 7 days  ·  stars. Click a repository for its details.", 10.5, "Muted");
         hint.Margin = new Thickness(0, 6, 0, 0);
         sp.Children.Add(hint);
         return sp;
@@ -409,8 +412,8 @@ internal sealed class OverviewView : View
             Grid.SetColumn(v, 2);
             g.Children.Add(v);
             g.ToolTip = (rel.Name.Length > 0 ? rel.Name + " - " : "") + Fmt.N(rel.Downloads) + " downloads";
-            string url = rel.Url;
-            g.MouseLeftButtonUp += (s, e) => { e.Handled = true; Ui.OpenUrl(url); };
+            string key = repo + "|" + rel.Tag;
+            g.MouseLeftButtonUp += (s, e) => { e.Handled = true; Host.Window?.ShowDetail("release", key); };
             sp.Children.Add(g);
         }
         return sp;

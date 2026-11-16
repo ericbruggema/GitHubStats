@@ -20,6 +20,10 @@ internal sealed class DailyBarChart : FrameworkElement
     /// <summary>Optional second series drawn as a line (e.g. unique visitors); null = the 7-day average.</summary>
     private double?[]? _line;
     private string _lineLabel = "7-day average";
+    /// <summary>true = one bar per hour (labels HH:mm) instead of one per day.</summary>
+    public bool Hourly;
+    /// <summary>Raised when a bar is clicked; the bars then show a hand cursor.</summary>
+    public event Action<DateTime>? DayClicked;
     private const double L = 40, R = 12, T = 10, B = 22;
 
     public DailyBarChart()
@@ -109,15 +113,16 @@ internal sealed class DailyBarChart : FrameworkElement
         dc.DrawGeometry(null, avgPen, geo);
 
         // dates: every 1, 2, 7 or 14 days, whatever leaves about 70 px per label (weeks start on Monday)
-        int step = new[] { 1, 2, 7, 14, 28 }.First(s => p.Width / n * s >= 70 || s == 28);
+        int step = Hourly ? new[] { 1, 2, 3, 6, 12 }.First(s => p.Width / n * s >= 50 || s == 12)
+            : new[] { 1, 2, 7, 14, 28 }.First(s => p.Width / n * s >= 70 || s == 28);
         double lastRight = double.MinValue;
         for (int i = 0; i < n; i++)
         {
             var day = _days[i].Day;
-            bool tick = step >= 7 ? day.DayOfWeek == DayOfWeek.Monday && ((n - 1 - i) / 7) % (step / 7) == 0 : (n - 1 - i) % step == 0;
+            bool tick = Hourly ? day.Hour % step == 0 : step >= 7 ? day.DayOfWeek == DayOfWeek.Monday && ((n - 1 - i) / 7) % (step / 7) == 0 : (n - 1 - i) % step == 0;
             if (!tick) continue;
             double cx = p.Left + slot * (i + 0.5);
-            var ft = FT(day.ToString("MMM d", CultureInfo.InvariantCulture), 10.5, muted);
+            var ft = FT(day.ToString(Hourly ? "HH:mm" : "MMM d", CultureInfo.InvariantCulture), 10.5, muted);
             double lx = Math.Max(0, Math.Min(w - ft.Width, cx - ft.Width / 2));
             if (lx < lastRight + 8) continue;
             dc.DrawLine(gridPen, new Point(cx, p.Bottom), new Point(cx, p.Bottom + 3));
@@ -130,7 +135,8 @@ internal sealed class DailyBarChart : FrameworkElement
         {
             var (day, v) = _days[_hover];
             double? lv = LineValue(_hover);
-            var l1 = FT(day.ToString("dddd d MMM yyyy", CultureInfo.InvariantCulture), 11.5, muted);
+            var l1 = FT(Hourly ? day.ToString("HH:mm", CultureInfo.InvariantCulture) + " - " + day.AddHours(1).ToString("HH:mm", CultureInfo.InvariantCulture)
+                : day.ToString("dddd d MMM yyyy", CultureInfo.InvariantCulture) + (DayClicked != null ? "  → click for details" : ""), 11.5, muted);
             var l2 = FT(v == null ? "no measurement" : Fmt.N(v.Value) + " " + _unit, 13, text, true);
             var l3 = FT(lv != null ? _lineLabel + " " + lv.Value.ToString("0.#", CultureInfo.CurrentCulture) : "", 11, muted);
             double bwid = Math.Max(l1.Width, Math.Max(l2.Width, l3.Width)) + 20, bhgt = 12 + l1.Height + l2.Height + (l3.Text.Length > 0 ? l3.Height : 0);
@@ -169,6 +175,17 @@ internal sealed class DailyBarChart : FrameworkElement
         double x = e.GetPosition(this).X;
         int idx = x < p.Left || x > p.Right ? -1 : Math.Min(n - 1, (int)((x - p.Left) / (p.Width / n)));
         if (idx != _hover) { _hover = idx; InvalidateVisual(); }
+        Cursor = DayClicked != null && idx >= 0 ? Cursors.Hand : null;
+    }
+
+    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonUp(e);
+        if (DayClicked != null && _hover >= 0 && _hover < _days.Count)
+        {
+            e.Handled = true; // not also the block around the chart
+            DayClicked(_days[_hover].Day);
+        }
     }
 
     protected override void OnMouseLeave(MouseEventArgs e)

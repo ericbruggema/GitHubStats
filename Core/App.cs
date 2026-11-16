@@ -337,7 +337,17 @@ internal sealed class App
     {
         if (h.Count > 0 && h[^1][0] > t - 3600) h[^1] = new[] { t, downloads };
         else h.Add(new[] { t, downloads });
-        while (h.Count > 60) h.RemoveAt(0);
+        // at most one point per hour for the last 2 days, then the last point of each day (about a year and a half
+        // fits in 600 points), so the day and release pages can show downloads per day for every release
+        long cutoff = t - 2 * 86400;
+        if (h.Count > 48 && h[0][0] < cutoff)
+        {
+            var old = h.Where(x => x[0] < cutoff).GroupBy(x => x[0] / 86400).Select(g => g.Last());
+            var kept = old.Concat(h.Where(x => x[0] >= cutoff)).ToList();
+            h.Clear();
+            h.AddRange(kept);
+        }
+        while (h.Count > 600) h.RemoveAt(0);
     }
 
     /// <summary>
