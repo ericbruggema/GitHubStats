@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -424,7 +424,7 @@ internal sealed class DetailView : View
         {
             var hb = new DailyBarChart { Height = 180, Hourly = true };
             hb.SetDays(hours, "downloads");
-            Section("During the day", hb, "Downloads counted per refresh, shown at the hour the refresh finished (" + inDay.Count + " refreshes that day). More frequent refreshing gives a finer picture.");
+            Section("During the day", hb, "Downloads counted per refresh, shown at the hour the refresh finished (" + inDay.Count + " refreshes that day). A bar after a pause (computer off) holds everything since the refresh before it.");
         }
 
         // per repository and per release
@@ -436,15 +436,22 @@ internal sealed class DetailView : View
         }
         var relRows = new List<DetailRow>();
         foreach (var r in app.Data.Repos.Values)
+        {
+            long split = 0;
             foreach (var rel in r.Releases)
             {
                 var rd = Daily(rel.History.Select(x => (x[0], x[1])), 400).FirstOrDefault(d => d.Day == day);
-                if (rd.Value is long rv && rv != 0) relRows.Add(new DetailRow { A = r.Name, B = rel.Tag, C = Fmt.N(rv), SC = rv, Open = "release:" + r.Name + "|" + rel.Tag });
+                if (rd.Value is long rv && rv != 0) { relRows.Add(new DetailRow { A = r.Name, B = rel.Tag, C = Fmt.N(rv), SC = rv, Open = "release:" + r.Name + "|" + rel.Tag }); split += rv; }
             }
+            // what the repository gained that day but could not be split per release (no release measurement that day)
+            long repoDay = repoRows.Where(x => x.A == r.Name).Sum(x => (long)x.SB);
+            if (repoDay > split)
+                relRows.Add(new DetailRow { A = r.Name, B = "(not split)", C = Fmt.N(repoDay - split), SC = repoDay - split, Open = "repo:" + r.Name });
+        }
         var two = new MasonryPanel { MinColumnWidth = 420, Gap = 14, Margin = new Thickness(0, 14, 0, 0) };
         two.Children.Add(Box("Downloads per repository", repoRows.Count == 0 ? Ui.Text("No downloads measured this day.", 12, "Muted") :
             Table(new[] { ("Repository", "A", "", 0.0, false), ("Downloads", "B", "SB", 100, true) }, repoRows.OrderByDescending(x => x.SB))));
-        two.Children.Add(Box("Downloads per release", relRows.Count == 0 ? Ui.Text("No release history for this day. Release history is kept from version 2.5 on: hourly for 2 days, then per day.", 12, "Muted", false, true) :
+        two.Children.Add(Box("Downloads per release", relRows.Count == 0 ? Ui.Text("No release history for this day. Per-release history is reliable from version 2.5.1 on (hourly for 14 days, then per day).", 12, "Muted", false, true) :
             Table(new[] { ("Repository", "A", "", 0.0, false), ("Release", "B", "", 110, false), ("Downloads", "C", "SC", 100, true) }, relRows.OrderByDescending(x => x.SC))));
 
         var stars = StarsOn(day);
@@ -503,7 +510,10 @@ internal sealed class DetailView : View
         int rank = ordered.IndexOf(rel) + 1;
         double share = repo.Downloads > 0 ? (double)rel.Downloads / repo.Downloads : 0;
         var daily = Daily(rel.History.Select(x => (x[0], x[1])), 400);
-        long d7 = daily.Skip(Math.Max(0, daily.Count - 7)).Sum(d => d.Value ?? 0);
+        // last 7 days: now minus the last measurement from 7 days ago or earlier (or the first one, for a young release)
+        long since = Clock.Now() - 7 * 86400;
+        var basePt = rel.History.LastOrDefault(x => x[0] <= since) ?? rel.History.FirstOrDefault();
+        long d7 = basePt == null ? 0 : Math.Max(0, rel.Downloads - basePt[1]);
         Facts(("Downloads", Fmt.N(rel.Downloads), "S0"),
               ("Published", pub == DateTime.MinValue ? "-" : TimeZoneInfo.ConvertTimeFromUtc(pub, Clock.Tz).ToString("d MMM yyyy", Inv), "Text"),
               ("Age", age > 0 ? Math.Round(age) + " days" : "-", "Text"),
@@ -644,8 +654,9 @@ internal sealed class DetailView : View
     // ================================================================== per-day helper
 
     /// <summary>
-    /// Change per calendar day (local time) from cumulative points (unix time, total): the last value of each day minus
-    /// the last value of the previous measured day. Oldest first, ending today; null = no measurement that day.
+    /// Change per calendar day (local time) from cumulative points (unix time, total): the last value of the day minus
+    /// the last value of the day before. Oldest first, ending today. null = not measured that day or the day before
+    /// (a change over a longer gap is never put on one day).
     /// </summary>
     private static List<(DateTime Day, long? Value)> Daily(IEnumerable<(long T, long V)> points, int count)
     {
@@ -658,8 +669,8 @@ internal sealed class DetailView : View
         {
             var day = today.AddDays(-i);
             long? val = null;
-            int k = keys.BinarySearch(day);
-            if (k > 0) val = Math.Max(0, lastOfDay[day] - lastOfDay[keys[k - 1]]);
+            // only when the previous day was measured too; otherwise the change would cover several days
+            if (lastOfDay.TryGetValue(day, out long end) && lastOfDay.TryGetValue(day.AddDays(-1), out long before)) val = Math.Max(0, end - before);
             list.Add((day, val));
         }
         return list;

@@ -24,7 +24,7 @@ GitHub Stats asks GitHub for new numbers on a schedule you choose in **Settings 
 
 The setting shows how many API requests a refresh costs and how much of your hourly limit that uses.
 Every refresh stores a snapshot, and those snapshots make the charts and the *change last / 7d / per day* columns.
-The last 2 days keep every snapshot; older history keeps one per 6 hours, so frequent refreshing never pushes old
+The last 14 days keep every snapshot; older history keeps one per 6 hours, so frequent refreshing never pushes old
 history out.
 
 - **Background refresh** (Settings → Data): on = refresh by itself while the program runs. Off = only

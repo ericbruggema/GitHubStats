@@ -558,8 +558,8 @@ internal static class WidgetStyles
             long? v = null;
             if (lastOfDay.TryGetValue(day, out long end))
             {
-                var prev = lastOfDay.Keys.Where(k => k < day).DefaultIfEmpty(DateTime.MinValue).Max();
-                if (prev != DateTime.MinValue) v = Math.Max(0, end - lastOfDay[prev]);
+                // only when the previous day was measured too; otherwise this would hold several days at once
+                if (lastOfDay.TryGetValue(day.AddDays(-1), out long before)) v = Math.Max(0, end - before);
             }
             list.Add((day, v));
         }

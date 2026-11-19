@@ -153,6 +153,7 @@ internal sealed class DailyBarChart : FrameworkElement
     private double? LineValue(int i)
     {
         if (_line != null) return _line[i];
+        if (Hourly) return null; // a 7-day average means nothing per hour
         var win = _days.Skip(Math.Max(0, i - 6)).Take(Math.Min(7, i + 1)).Where(d => d.Value != null).Select(d => d.Value!.Value).ToList();
         return win.Count >= 3 ? win.Average() : null;
     }

@@ -299,8 +299,12 @@ internal sealed class OverviewView : View
         grid.Margin = new Thickness(-1.5, 0, 0, 4);
         sp.Children.Add(grid);
         sp.Children.Add(WidgetStyles.HeatLegend());
-        long thisWeek = days.Skip(days.Count - 7).Sum(d => d.Value ?? 0);
-        long lastWeek = days.Skip(days.Count - 14).Take(7).Sum(d => d.Value ?? 0);
+        // the same 7 x 24 hours as the cards and the top repositories (not calendar days, today is still running)
+        var all = Host.App.Data.Snapshots;
+        long now = Clock.Now();
+        long At(long t) => (all.LastOrDefault(x => x.T <= t) ?? all.FirstOrDefault())?.Downloads ?? 0;
+        long thisWeek = all.Count == 0 ? 0 : all[^1].Downloads - At(now - 7 * 86400);
+        long lastWeek = all.Count == 0 ? 0 : At(now - 7 * 86400) - At(now - 14 * 86400);
         var best = days.Where(d => d.Value.HasValue).OrderByDescending(d => d.Value).FirstOrDefault();
         var facts = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
         facts.Children.Add(Fact("Last 7 days", Fmt.N(thisWeek), thisWeek >= lastWeek ? "Up" : "Down"));

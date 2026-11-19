@@ -317,12 +317,12 @@ internal sealed class App
     }
 
     /// <summary>
-    /// Keeps the history small without losing its shape: every snapshot of the last 2 days, then one per 6 hours
+    /// Keeps the history small without losing its shape: every snapshot of the last 14 days, then one per 6 hours
     /// (the last of each block). Frequent refreshes therefore never push old history out.
     /// </summary>
     private static List<Snapshot> Thin(List<Snapshot> all)
     {
-        long cutoff = Clock.Now() - 2 * 86400;
+        long cutoff = Clock.Now() - 14 * 86400;
         var old = all.Where(s => s.T < cutoff).GroupBy(s => s.T / 21600).Select(g => g.OrderBy(s => s.T).Last());
         var list = old.Concat(all.Where(s => s.T >= cutoff)).OrderBy(s => s.T).ToList();
         return list.Count > Config.MaxSnapshots ? list.TakeLast(Config.MaxSnapshots).ToList() : list;
@@ -335,19 +335,22 @@ internal sealed class App
 
     private static void AddHistory(List<long[]> h, long t, long downloads)
     {
-        if (h.Count > 0 && h[^1][0] > t - 3600) h[^1] = new[] { t, downloads };
+        // one point per clock hour: a later refresh in the same hour updates that hour's point. (Before 2.5.1 a point
+        // younger than an hour was replaced, so with refreshes every 30 minutes the last point kept sliding forward
+        // and no history was built at all.)
+        if (h.Count > 0 && h[^1][0] / 3600 == t / 3600) h[^1] = new[] { t, downloads };
         else h.Add(new[] { t, downloads });
-        // at most one point per hour for the last 2 days, then the last point of each day (about a year and a half
-        // fits in 600 points), so the day and release pages can show downloads per day for every release
-        long cutoff = t - 2 * 86400;
-        if (h.Count > 48 && h[0][0] < cutoff)
+        // at most one point per hour for the last 14 days, then the last point of each day (well over a year fits in
+        // 800 points), so the day and release pages can show downloads per day and per hour for every release
+        long cutoff = t - 14 * 86400;
+        if (h.Count > 14 * 24 && h[0][0] < cutoff)
         {
             var old = h.Where(x => x[0] < cutoff).GroupBy(x => x[0] / 86400).Select(g => g.Last());
             var kept = old.Concat(h.Where(x => x[0] >= cutoff)).ToList();
             h.Clear();
             h.AddRange(kept);
         }
-        while (h.Count > 600) h.RemoveAt(0);
+        while (h.Count > 800) h.RemoveAt(0);
     }
 
     /// <summary>

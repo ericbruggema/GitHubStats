@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.5.1 (2026-11-19)
+
+### Fixed
+- **Per-release history was hardly recorded.** A measurement younger than an hour was replaced instead of added, so with
+  refreshes every 30 minutes the last point kept moving forward. Release pages and the day page therefore put
+  downloads of several days on one day, and "Downloads per release" did not match "Downloads per repository".
+  History is now recorded once per clock hour.
+- A day's figure is only shown when the day before was measured too; a change over a longer gap (computer off) is no
+  longer put on one day. This applies to every per-day chart, the heatmap and the day page.
+- The day page splits each repository's downloads over its releases and shows what could not be split as
+  "(not split)", so both boxes always add up to the same total.
+- "Last 7 days" on a release page now uses the real change since a week ago.
+- The hourly chart on the day page no longer draws a meaningless 7-day average line.
+- The download calendar's "Last 7 days" counted 7 calendar days (including today, which is still running) and so
+  differed from the cards and top repositories; it now uses the same last 7 x 24 hours.
+
+### Changed
+- Every refresh of the last 14 days is kept (was 2), and release history hourly for 14 days, so "During the day" stays
+  detailed for two weeks.
+
 ## 2.5.0 (2026-11-16)
 
 ### New
